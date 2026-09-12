@@ -1,0 +1,191 @@
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  jidNormalizedUser,
+} from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
+import qrcode from "qrcode-terminal";
+import pino from "pino";
+import { profile } from "./config.js"; // also loads .env as a side effect (see config.js)
+import { hasConversation, recordMessage } from "./store.js";
+import { handleOwnerCommand, isAjith } from "./commands.js";
+import { generateAssistantReply } from "./assistant.js";
+import { setStatus } from "./connectionState.js";
+
+// Back to "silent" now that the connection itself is confirmed working —
+// keeps the terminal readable while we test message handling.
+const logger = pino({ level: "silent" });
+
+if (!process.env.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY === "YOUR_NVIDIA_API_KEY_HERE") {
+  console.error("❌ NVIDIA_API_KEY is missing in .env — the assistant replies/summary will fail until it's set.");
+}
+
+async function startBot() {
+  setStatus("connecting");
+
+  // Persist WhatsApp login session in ./auth_info_baileys/
+  const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+
+  // Ask WhatsApp's servers for the current protocol version instead of
+  // trusting the version baked into this Baileys build — a stale baked-in
+  // version is the most common cause of "QR scans but nothing happens".
+  const { version, isLatest } = await fetchLatestBaileysVersion();
+  console.log(`Using WA version ${version.join(".")}, isLatest: ${isLatest}`);
+
+  const sock = makeWASocket({
+    auth: state,
+    logger,
+    version,
+  });
+
+  // Save updated credentials whenever they change
+  sock.ev.on("creds.update", saveCreds);
+
+  // Handle connection state changes (QR code, open, close)
+  sock.ev.on("connection.update", (update) => {
+    const { connection, lastDisconnect, qr } = update;
+
+    if (qr) {
+      console.log("Scan this QR code with WhatsApp (Linked Devices):");
+      qrcode.generate(qr, { small: true });
+      setStatus("qr", { qr });
+    }
+
+    if (connection === "open") {
+      console.log("✅ WhatsApp connected successfully!");
+
+      // Detect Ajith's own identity from the logged-in session itself — no
+      // manual JID entry needed. A WhatsApp account has TWO possible
+      // identities that can show up as a message's remoteJid: the
+      // phone-number JID (sock.user.id) and the LID (sock.user.lid) — these
+      // are NOT derived from each other, confirmed for real via [TRACE] logs
+      // showing a self-chat message arriving under a totally different
+      // number once "@lid" is involved. Both are captured so owner-command
+      // matching (commands.js) can check either form.
+      const ownerJid = jidNormalizedUser(sock.user?.id);
+      const ownerLid = sock.user?.lid ? jidNormalizedUser(sock.user.lid) : null;
+
+      if (ownerJid) {
+        profile.whatsappJid = ownerJid;
+      } else {
+        console.error("⚠️ Could not detect the logged-in owner phone JID from sock.user.");
+      }
+      profile.whatsappLid = ownerLid;
+
+      console.log(`[OWNER] phone JID: ${ownerJid || "(not detected)"}`);
+      console.log(`[OWNER] LID: ${ownerLid || "(none reported by this session)"}`);
+      console.log(`Ajith's availability: ${profile.availability}`);
+
+      setStatus("connected", { qr: null, sock });
+    }
+
+    if (connection === "close") {
+      const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
+      const loggedOut = statusCode === DisconnectReason.loggedOut;
+
+      console.log(
+        `Connection closed (status code: ${statusCode}).`,
+        loggedOut ? "Logged out — delete auth_info_baileys/ and re-scan QR." : "Reconnecting..."
+      );
+
+      setStatus(loggedOut ? "logged_out" : "reconnecting", { qr: null, sock: null });
+
+      if (!loggedOut) {
+        startBot();
+      }
+    }
+  });
+
+  // Listen for incoming messages
+  sock.ev.on("messages.upsert", async ({ messages, type }) => {
+    // TEMP diagnostic: confirms whether WhatsApp is delivering message events at all.
+    // Safe to remove once message handling is confirmed working.
+    console.log(`messages.upsert fired — type: ${type}, count: ${messages.length}`);
+
+    for (const msg of messages) {
+      if (!msg.message) continue; // no content (e.g. protocol/receipt messages)
+
+      const remoteJid = msg.key.remoteJid;
+      const fromMe = !!msg.key.fromMe;
+      const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+
+      // TEMP diagnostic: full trace of every relevant field, so a broken
+      // owner-command match is visible immediately instead of guessed at.
+      const recognizedAsOwnerCommand = fromMe && isAjith(remoteJid) && !!text;
+      console.log(
+        `[TRACE] remoteJid=${remoteJid} fromMe=${fromMe} ownerPhoneJid=${profile.whatsappJid} ownerLid=${profile.whatsappLid} recognizedAsOwnerCommand=${recognizedAsOwnerCommand}`
+      );
+
+      // Group/status guard FIRST, before anything else — never act on these,
+      // regardless of who sent them.
+      if (remoteJid && remoteJid.endsWith("@g.us")) {
+        console.log("[GROUP] Ignored group message");
+        continue;
+      }
+      if (!remoteJid || remoteJid === "status@broadcast") continue;
+
+      // Owner commands ("/available", "/unavailable", "/summary"): Ajith
+      // sends these to himself via his own "Message Yourself" WhatsApp chat.
+      // Because this bot IS a linked device on Ajith's own account, that
+      // message arrives here with fromMe: true too — the same flag used on
+      // the bot's own outgoing replies. So this checks BOTH fromMe AND that
+      // remoteJid matches one of Ajith's two known identities (isAjith
+      // checks phone JID and LID separately), before the generic fromMe skip
+      // below — every other fromMe message (including the bot's own sent
+      // messages, and any other self-chat text that isn't one of the three
+      // exact commands) falls through and is ignored as always, and the
+      // normal contact-handling logic never runs for a recognized command.
+      if (recognizedAsOwnerCommand) {
+        try {
+          const handled = await handleOwnerCommand(sock, remoteJid, text);
+          if (handled) continue;
+        } catch (err) {
+          console.error("❌ Error handling owner command:", err.message);
+          continue;
+        }
+      }
+
+      if (fromMe) continue; // ignore our own messages/replies to prevent loops
+
+      if (!text) continue; // ignore non-text messages (images, stickers, etc.) for now
+
+      const displayName = msg.pushName || remoteJid.split("@")[0];
+      console.log(`[CONTACT] ${displayName}`);
+      console.log(`[STATE] ${profile.availability}`);
+
+      try {
+        const isFirstMessage = !hasConversation(remoteJid);
+        const conversation = recordMessage(remoteJid, "contact", text, msg.pushName);
+        console.log("[STORED] Message stored");
+
+        // Personal-assistant mode, but NOT silent after the first message:
+        // the very first message from a contact while UNAVAILABLE always
+        // gets this exact fixed greeting (no NVIDIA call needed for it).
+        // Every message after that — and anything at all while AVAILABLE —
+        // gets a natural NVIDIA-generated reply that keeps the conversation
+        // going (see assistant.js), while still recording everything for
+        // the next /summary.
+        const reply =
+          profile.availability === "UNAVAILABLE" && isFirstMessage
+            ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.name}'s personal assistant. Is there anything you'd like to tell ${profile.name}?`
+            : await generateAssistantReply(conversation);
+
+        await sock.sendMessage(remoteJid, { text: reply });
+        recordMessage(remoteJid, "assistant", reply);
+        console.log(`Replied to ${remoteJid}: ${reply}`);
+      } catch (err) {
+        // generateAssistantReply already has its own fallback/catch for
+        // NVIDIA failures — this only catches something else going wrong
+        // (e.g. sock.sendMessage itself failing), so the bot never crashes.
+        console.error("❌ Error handling message:", err.message);
+      }
+    }
+  });
+}
+
+// Started by server.js once the web setup form is submitted (instead of
+// unconditionally at module load) — nothing about startBot's own logic
+// changed, only when it's first invoked. The recursive startBot() call
+// above (on an unexpected disconnect) is unchanged.
+export { startBot };

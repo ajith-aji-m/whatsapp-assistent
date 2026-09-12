@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>WhatsApp Personal Assistant — Setup</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #f5f6f8;
+    --card: #ffffff;
+    --text: #1a1d23;
+    --muted: #6b7280;
+    --border: #e3e5e9;
+    --accent: #16a34a;
+    --accent-off: #9ca3af;
+    --danger: #dc2626;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a;
+      --card: #1d2025;
+      --text: #eef0f3;
+      --muted: #9aa1ad;
+      --border: #30343b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 28px;
+    width: 100%;
+    max-width: 420px;
+  }
+  h1 { font-size: 1.25rem; margin: 0 0 4px; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; }
+  label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 6px; }
+  input[type="text"], input[type="password"], select {
+    width: 100%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+    font-size: 0.95rem;
+  }
+  .radio-row { display: flex; gap: 10px; margin-top: 4px; }
+  .radio-row label {
+    flex: 1;
+    margin: 0;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 500;
+    font-size: 0.9rem;
+  }
+  .radio-row input { display: none; }
+  .radio-row input:checked + span { color: var(--accent); font-weight: 700; }
+  button {
+    width: 100%;
+    margin-top: 20px;
+    padding: 12px;
+    border-radius: 8px;
+    border: none;
+    background: var(--accent);
+    color: white;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button.secondary { background: var(--accent-off); margin-top: 10px; }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .hint { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
+  .hidden { display: none !important; }
+  .center { text-align: center; }
+  #qrImg { width: 220px; height: 220px; border-radius: 8px; border: 1px solid var(--border); margin: 16px auto; display: block; }
+  .status-line { font-size: 0.95rem; margin: 12px 0; }
+  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
+  .dot.green { background: var(--accent); }
+  .dot.gray { background: var(--accent-off); }
+  .dot.red { background: var(--danger); }
+  .avail-row { display: flex; gap: 10px; margin-top: 6px; }
+  .avail-row button { margin-top: 0; flex: 1; background: var(--accent-off); }
+  .avail-row button.active { background: var(--accent); }
+  pre {
+    white-space: pre-wrap;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 0.85rem;
+    margin-top: 12px;
+  }
+  .err { color: var(--danger); font-size: 0.85rem; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="card">
+
+  <!-- SETUP SCREEN -->
+  <div id="screen-setup">
+    <h1>WhatsApp Personal Assistant</h1>
+    <p class="sub">Set up your assistant, then connect WhatsApp.</p>
+
+    <form id="setupForm">
+      <label for="name">Name</label>
+      <input type="text" id="name" placeholder="Ajith" required />
+
+      <label for="role">Role / Occupation</label>
+      <input type="text" id="role" placeholder="Developer" required />
+
+      <label>Availability</label>
+      <div class="radio-row">
+        <label><input type="radio" name="availability" value="AVAILABLE" /><span>Available</span></label>
+        <label><input type="radio" name="availability" value="UNAVAILABLE" checked /><span>Unavailable</span></label>
+      </div>
+
+      <button type="submit" id="setupSubmit">Next</button>
+      <div class="err hidden" id="setupError"></div>
+    </form>
+  </div>
+
+  <!-- QR / CONNECTING SCREEN -->
+  <div id="screen-qr" class="hidden center">
+    <h1>Connect WhatsApp</h1>
+    <div id="qrStatusLine" class="status-line">Starting...</div>
+    <img id="qrImg" class="hidden" alt="WhatsApp QR code" />
+  </div>
+
+  <!-- DASHBOARD SCREEN -->
+  <div id="screen-dashboard" class="hidden">
+    <h1 id="dashName">Assistant</h1>
+    <p class="sub" id="dashRole"></p>
+
+    <div class="status-line"><span class="dot green"></span>WhatsApp: Connected</div>
+
+    <label>Availability</label>
+    <div class="avail-row">
+      <button type="button" id="btnAvailable">Available</button>
+      <button type="button" id="btnUnavailable">Unavailable</button>
+    </div>
+
+    <button type="button" class="secondary" id="btnSummary">Get Summary</button>
+    <button type="button" class="secondary" id="btnCommands">Show Commands</button>
+
+    <pre id="resultBox" class="hidden"></pre>
+  </div>
+
+</div>
+
+<script>
+  const el = (id) => document.getElementById(id);
+  const screens = {
+    setup: el("screen-setup"),
+    qr: el("screen-qr"),
+    dashboard: el("screen-dashboard"),
+  };
+
+  function showScreen(name) {
+    for (const key in screens) screens[key].classList.toggle("hidden", key !== name);
+  }
+
+  function renderAvailabilityButtons(availability) {
+    el("btnAvailable").classList.toggle("active", availability === "AVAILABLE");
+    el("btnUnavailable").classList.toggle("active", availability === "UNAVAILABLE");
+  }
+
+  function applyStatus(data) {
+    if (data.profile) {
+      el("dashName").textContent = data.profile.name || "Assistant";
+      el("dashRole").textContent = data.profile.role || "";
+      renderAvailabilityButtons(data.profile.availability);
+    }
+
+    if (data.status === "connected") {
+      showScreen("dashboard");
+    } else if (data.status === "qr") {
+      showScreen("qr");
+      el("qrStatusLine").textContent = "Waiting for WhatsApp scan...";
+      if (data.qrDataUrl) {
+        el("qrImg").src = data.qrDataUrl;
+        el("qrImg").classList.remove("hidden");
+      }
+    } else if (data.status === "connecting" || data.status === "reconnecting") {
+      showScreen("qr");
+      el("qrImg").classList.add("hidden");
+      el("qrStatusLine").textContent =
+        data.status === "reconnecting" ? "Reconnecting to WhatsApp..." : "Starting WhatsApp connection...";
+    } else if (data.status === "logged_out") {
+      showScreen("qr");
+      el("qrImg").classList.add("hidden");
+      el("qrStatusLine").textContent =
+        "Logged out. Delete the auth_info_baileys folder on the server and restart to re-scan.";
+    }
+    // "idle" -> stay on whichever screen is already showing (setup, normally).
+  }
+
+  // Live updates — no manual refresh needed for new QR codes or state changes.
+  const events = new EventSource("/api/events");
+  events.onmessage = (e) => applyStatus(JSON.parse(e.data));
+
+  // Initial snapshot decides which screen to start on (e.g. skip setup
+  // entirely if this process is already connected).
+  fetch("/api/status")
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.status === "connected" || data.status === "qr" || data.status === "connecting") {
+        applyStatus(data);
+      } else {
+        showScreen("setup");
+        renderAvailabilityButtons(data.profile?.availability || "UNAVAILABLE");
+        if (data.profile?.name) el("name").value = data.profile.name;
+        if (data.profile?.role) el("role").value = data.profile.role;
+      }
+    });
+
+  el("setupForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    el("setupError").classList.add("hidden");
+    el("setupSubmit").disabled = true;
+
+    const availability = document.querySelector('input[name="availability"]:checked').value;
+    const body = {
+      name: el("name").value,
+      role: el("role").value,
+      availability,
+    };
+
+    try {
+      const res = await fetch("/api/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) throw new Error("Setup failed");
+      showScreen("qr");
+      el("qrStatusLine").textContent = "Starting WhatsApp connection...";
+    } catch (err) {
+      el("setupError").textContent = "Could not save setup. Please try again.";
+      el("setupError").classList.remove("hidden");
+    } finally {
+      el("setupSubmit").disabled = false;
+    }
+  });
+
+  async function setAvailability(value) {
+    renderAvailabilityButtons(value); // optimistic
+    await fetch("/api/availability", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ availability: value }),
+    });
+  }
+  el("btnAvailable").addEventListener("click", () => setAvailability("AVAILABLE"));
+  el("btnUnavailable").addEventListener("click", () => setAvailability("UNAVAILABLE"));
+
+  el("btnSummary").addEventListener("click", async () => {
+    el("resultBox").classList.remove("hidden");
+    el("resultBox").textContent = "Generating summary...";
+    try {
+      const res = await fetch("/api/summary", { method: "POST" });
+      const data = await res.json();
+      el("resultBox").textContent = data.ok ? data.summary : "Error: " + data.error;
+    } catch {
+      el("resultBox").textContent = "Error generating summary.";
+    }
+  });
+
+  el("btnCommands").addEventListener("click", async () => {
+    el("resultBox").classList.remove("hidden");
+    const res = await fetch("/api/commands");
+    const data = await res.json();
+    el("resultBox").textContent = data.text;
+  });
+</script>
+</body>
+</html>

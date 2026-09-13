@@ -131,6 +131,28 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
+      // Public health check — no auth, no QR/status encoding work, so it's
+      // cheap enough to hit on a tight schedule. Point an external cron
+      // (e.g. every 5 min) or Render's own "Health Check Path" setting at
+      // this to stop a free-tier instance from spinning down on idle.
+      // Responds 200 as soon as the HTTP server itself is up, regardless of
+      // WhatsApp connection state — that's what keeps Render's health probe
+      // (and the wake-up cron) happy even while the bot is still connecting.
+      if ((req.method === "GET" || req.method === "HEAD") && (url.pathname === "/health" || url.pathname === "/api/health")) {
+        const payload = {
+          status: "ok",
+          uptime: process.uptime(),
+          timestamp: new Date().toISOString(),
+        };
+        if (req.method === "HEAD") {
+          res.writeHead(200, { "Content-Type": "application/json; charset=utf-8" });
+          res.end();
+        } else {
+          sendJson(res, 200, payload);
+        }
+        return;
+      }
+
       if (req.method === "GET" && url.pathname === "/api/status") {
         sendJson(res, 200, await buildStatusPayload(isAuthenticated(req)));
         return;

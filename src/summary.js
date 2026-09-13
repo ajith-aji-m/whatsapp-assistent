@@ -57,6 +57,6 @@ export async function sendSummaryToAjith(sock, destinationJid) {
     markConversationHandled(convo.jid);
   }
 
-  console.log(`✅ Sent summary to Ajith for ${pending.length} conversation(s); marked as handled.`);
+  console.log(`✅ Sent summary for ${pending.length} conversation(s); marked as handled.`);
   return fullText;
 }

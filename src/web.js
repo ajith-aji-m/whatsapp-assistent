@@ -186,7 +186,7 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
-      // Step 2→3 of the setup wizard ("Continue"): saves the owner/assistant
+      // Step 2→3 of the setup wizard ("Next"): saves the owner/assistant
       // details and the (possibly edited) prompt, and starts the WhatsApp
       // connection so the QR is ready by the time the owner clears
       // verification. Still not gated by the access code — only the QR/

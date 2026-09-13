@@ -57,6 +57,7 @@
     font-family: inherit;
   }
   textarea { resize: vertical; min-height: 90px; line-height: 1.4; }
+  input[readonly], input:disabled { opacity: 0.7; cursor: not-allowed; }
   textarea#promptText { min-height: 160px; }
   .radio-row { display: flex; gap: 10px; margin-top: 4px; }
   .radio-row label {
@@ -124,17 +125,17 @@
     <p class="sub">Tell us who you are and how the assistant should behave, then connect WhatsApp.</p>
 
     <form id="setupForm">
-      <label for="ownerName">Owner / User Name</label>
-      <input type="text" id="ownerName" placeholder="Ajith" required />
+      <label for="ownerName">Name</label>
+      <input type="text" id="ownerName" value="Ajith" required />
 
       <label for="assistantName">Assistant Name</label>
-      <input type="text" id="assistantName" placeholder="Alex" required />
+      <input type="text" id="assistantName" value="Personal Assistant" required />
 
-      <label for="role">Assistant Role</label>
-      <input type="text" id="role" placeholder="Personal Assistant, Clinic Assistant, Sales Assistant..." required />
+      <label for="role">Role</label>
+      <input type="text" id="role" value="Personal Assistant" required />
 
-      <label for="instructions">Behavior / Instructions</label>
-      <textarea id="instructions" placeholder="You are my personal assistant. Help me manage conversations, respond naturally on my behalf, collect important information, and communicate professionally and politely." required></textarea>
+      <label for="instructions">Prompt / Instructions</label>
+      <textarea id="instructions" required>Use a suitable personal-assistant system prompt by default.</textarea>
 
       <label>Availability</label>
       <div class="radio-row">
@@ -142,7 +143,7 @@
         <label><input type="radio" name="availability" value="UNAVAILABLE" checked /><span>Unavailable</span></label>
       </div>
 
-      <button type="submit" id="setupSubmit">Generate Prompt</button>
+      <button type="submit" id="setupSubmit">Train Assistant</button>
       <div class="err hidden" id="setupError"></div>
     </form>
   </div>
@@ -160,7 +161,7 @@
       <button type="button" class="secondary" id="btnRegenerate">Regenerate Prompt</button>
       <button type="button" class="secondary" id="btnEditToggle">Edit Prompt</button>
     </div>
-    <button type="button" id="btnContinue">Continue</button>
+    <button type="button" id="btnContinue">Next</button>
     <div class="err hidden" id="promptError"></div>
   </div>
 
@@ -224,9 +225,13 @@
   }
 
   // Carries the wizard's details across steps 1-2 (owner/assistant/role/
-  // instructions), so "Regenerate Prompt" and "Continue" can resend them
+  // instructions), so "Regenerate Prompt" and "Next" can resend them
   // without asking the owner to retype anything.
   let wizardDetails = null;
+
+  // Guards "Train Assistant" against repeated clicks while an NVIDIA
+  // request is already in flight (on top of disabling the button itself).
+  let isTraining = false;
 
   function renderAvailabilityButtons(availability) {
     el("btnAvailable").classList.toggle("active", availability === "AVAILABLE");
@@ -268,13 +273,24 @@
   }
 
   // Live updates — no manual refresh needed for new QR codes or state
-  // changes. Ignored entirely until this browser has verified the access
-  // code (data.authenticated stays false until then).
-  const events = new EventSource("/api/events");
-  events.onmessage = (e) => {
-    const data = JSON.parse(e.data);
-    if (data.authenticated) applyStatus(data);
-  };
+  // changes. An SSE connection's request (and its cookies) are fixed for
+  // the lifetime of that connection — a stream opened before verification
+  // never becomes "authenticated" server-side even after this browser later
+  // verifies, since no new request is ever sent on it. So this is
+  // reconnected (see connectEvents calls below) right after verification
+  // succeeds, so the new stream is opened with the session cookie already
+  // present and live updates (like QR -> connected after scanning) actually
+  // arrive.
+  let events = null;
+  function connectEvents() {
+    if (events) events.close();
+    events = new EventSource("/api/events");
+    events.onmessage = (e) => {
+      const data = JSON.parse(e.data);
+      if (data.authenticated) applyStatus(data);
+    };
+  }
+  connectEvents();
 
   // Initial snapshot decides which of the four steps to start on: already
   // authenticated -> straight to QR/dashboard (per live status); configured
@@ -294,8 +310,12 @@
 
   el("setupForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+    if (isTraining) return; // ignore repeated clicks while a request is already in flight
+    isTraining = true;
+
     el("setupError").classList.add("hidden");
     el("setupSubmit").disabled = true;
+    el("setupSubmit").textContent = "Training your assistant... please wait";
 
     wizardDetails = {
       ownerName: el("ownerName").value.trim(),
@@ -312,17 +332,19 @@
         body: JSON.stringify(wizardDetails),
       });
       const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Prompt generation failed");
+      if (!res.ok || !data.ok) throw new Error(data.error || "Training failed");
 
       el("promptText").value = data.prompt;
       el("promptText").setAttribute("readonly", "readonly");
       el("btnEditToggle").textContent = "Edit Prompt";
       showScreen("prompt");
     } catch (err) {
-      el("setupError").textContent = err.message || "Could not generate a prompt. Please try again.";
+      el("setupError").textContent = err.message || "Could not train the assistant. Please try again.";
       el("setupError").classList.remove("hidden");
     } finally {
+      isTraining = false;
       el("setupSubmit").disabled = false;
+      el("setupSubmit").textContent = "Train Assistant";
     }
   });
 
@@ -409,6 +431,13 @@
       el("accessCode").value = "";
       showScreen("qr");
       el("qrStatusLine").textContent = "Starting WhatsApp connection...";
+
+      // Reconnect the live-updates stream now that the session cookie
+      // exists, so it actually delivers this browser's future pushes (see
+      // connectEvents' definition above for why the old one never would) —
+      // in particular the QR -> connected transition once the code is scanned.
+      connectEvents();
+
       // Pick up current state right away instead of waiting for the next SSE tick.
       const statusRes = await fetch("/api/status");
       const statusData = await statusRes.json();

@@ -27,17 +27,21 @@ export async function callNvidiaChat(messages) {
 
 const PROMPT_GENERATION_SYSTEM =
   "detailed thinking off\n" +
-  "You write system prompts for WhatsApp AI assistants. Given an owner's name, the assistant's name, its role, " +
-  "and behavior/instructions, write ONE clear system prompt (plain text, no headings, no markdown, no quotes " +
-  "around it) that makes the assistant behave exactly as described for that role. The prompt must tell the " +
-  "assistant to speak in first person as the assistant, never claim to be the owner, stay strictly within the " +
-  "given role, and follow the given instructions. Keep it concise — 4 to 8 sentences. Output ONLY the system " +
-  "prompt text, nothing else (no preamble, no explanation).";
+  "You write system prompts for a WhatsApp AI personal assistant. Given an owner's name, the assistant's name, " +
+  "its role, and behavior/instructions, write ONE clear system prompt (plain text, no headings, no markdown, no " +
+  "quotes around it) that makes the assistant behave exactly as described for that role. The prompt must instruct " +
+  "the assistant to: speak in first person as the assistant and never claim to be the owner; communicate in a " +
+  "warm, natural, human-like way — never like a stiff, robotic, scripted chatbot; understand and stay within the " +
+  "owner's role/context; answer relevant questions appropriately; keep the conversation flowing naturally across " +
+  "multiple messages instead of restarting each time; collect any important information the contact shares (who " +
+  "they are, what they want, and any relevant details) for the owner; and never respond to or engage with " +
+  "WhatsApp group messages. Follow the given instructions closely. Keep it concise — 4 to 8 sentences. Output " +
+  "ONLY the system prompt text, nothing else (no preamble, no explanation).";
 
 // Uses the same NVIDIA chat completion call as everything else in this app —
 // generates a system prompt for the WhatsApp assistant from the setup
 // wizard's role + instructions, instead of requiring the owner to write one
-// by hand. Reused by web.js for the "Generate Prompt"/"Regenerate Prompt"
+// by hand. Reused by web.js for the "Train Assistant"/"Regenerate Prompt"
 // setup step. Never throws on empty NVIDIA config elsewhere — callers here
 // let a failure propagate so the web UI can show a real error instead of
 // silently producing a broken assistant prompt.

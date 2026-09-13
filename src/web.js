@@ -10,6 +10,7 @@ import { commandsListText } from "./commands.js";
 import { generateSystemPrompt } from "./nvidia.js";
 import {
   SESSION_COOKIE_NAME,
+  SESSION_MAX_AGE_SECONDS,
   createSession,
   isValidSession,
   destroySession,
@@ -70,7 +71,14 @@ function isAuthenticated(req) {
 }
 
 function setSessionCookie(res, token) {
-  res.setHeader("Set-Cookie", `${SESSION_COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Lax`);
+  // Max-Age makes this a persistent cookie (survives closing the browser/app)
+  // instead of a session-only one — combined with the stateless token in
+  // access.js (which survives server restarts too), a browser that verifies
+  // once stays logged in until it explicitly logs out.
+  res.setHeader(
+    "Set-Cookie",
+    `${SESSION_COOKIE_NAME}=${token}; HttpOnly; Path=/; SameSite=Lax; Max-Age=${SESSION_MAX_AGE_SECONDS}`
+  );
 }
 
 function clearSessionCookie(res) {

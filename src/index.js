@@ -7,6 +7,7 @@ import makeWASocket, {
 import { Boom } from "@hapi/boom";
 import qrcode from "qrcode-terminal";
 import pino from "pino";
+import fs from "node:fs/promises";
 import { profile } from "./config.js"; // also loads .env as a side effect (see config.js)
 import { hasConversation, recordMessage } from "./store.js";
 import { handleOwnerCommand, isAjith } from "./commands.js";
@@ -19,6 +20,12 @@ const logger = pino({ level: "silent" });
 
 if (!process.env.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY === "YOUR_NVIDIA_API_KEY_HERE") {
   console.error("❌ NVIDIA_API_KEY is missing in .env — the assistant replies/summary will fail until it's set.");
+}
+
+if (!process.env.ASSISTANT_ACCESS_CODE) {
+  console.error(
+    "❌ ASSISTANT_ACCESS_CODE is missing in .env — the web setup's verification step will reject every code until it's set."
+  );
 }
 
 async function startBot() {
@@ -43,7 +50,7 @@ async function startBot() {
   sock.ev.on("creds.update", saveCreds);
 
   // Handle connection state changes (QR code, open, close)
-  sock.ev.on("connection.update", (update) => {
+  sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -86,14 +93,24 @@ async function startBot() {
 
       console.log(
         `Connection closed (status code: ${statusCode}).`,
-        loggedOut ? "Logged out — delete auth_info_baileys/ and re-scan QR." : "Reconnecting..."
+        loggedOut ? "Logged out — clearing stale session and generating a new QR." : "Reconnecting..."
       );
 
       setStatus(loggedOut ? "logged_out" : "reconnecting", { qr: null, sock: null });
 
-      if (!loggedOut) {
-        startBot();
+      if (loggedOut) {
+        // The saved credentials are no longer valid (session removed from
+        // the phone, expired, etc.) — clear them so useMultiFileAuthState
+        // starts fresh next call and Baileys emits a brand-new `qr` event,
+        // instead of dead-ending here and requiring a manual restart.
+        try {
+          await fs.rm("auth_info_baileys", { recursive: true, force: true });
+        } catch (err) {
+          console.error("❌ Failed to clear stale auth_info_baileys/:", err.message);
+        }
       }
+
+      startBot();
     }
   });
 
@@ -168,7 +185,7 @@ async function startBot() {
         // the next /summary.
         const reply =
           profile.availability === "UNAVAILABLE" && isFirstMessage
-            ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.name}'s personal assistant. Is there anything you'd like to tell ${profile.name}?`
+            ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.assistantName}, ${profile.name}'s ${profile.role}. Is there anything you'd like to tell ${profile.name}?`
             : await generateAssistantReply(conversation);
 
         await sock.sendMessage(remoteJid, { text: reply });

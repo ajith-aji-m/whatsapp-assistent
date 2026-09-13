@@ -4,12 +4,17 @@ import { sendSummaryToAjith } from "./summary.js";
 
 // Single source of truth for the command list text — used by both the
 // "/list" WhatsApp command below and the web UI's "Show Commands" button.
-export const COMMANDS_LIST_TEXT =
-  "Available commands:\n\n" +
-  "/available — Set Ajith's availability to available and process pending conversations.\n" +
-  "/unavailable — Set Ajith's availability to unavailable.\n" +
-  "/summary — Generate a summary of pending conversations.\n" +
-  "/list — Show this list of available commands.";
+// A function (not a constant) so it always reflects the current owner's name
+// from config.js, whoever that is for this run.
+export function commandsListText() {
+  return (
+    "Available commands:\n\n" +
+    `/available — Set ${profile.name}'s availability to available and process pending conversations.\n` +
+    `/unavailable — Set ${profile.name}'s availability to unavailable.\n` +
+    "/summary — Generate a summary of pending conversations.\n" +
+    "/list — Show this list of available commands."
+  );
+}
 
 // True only for Ajith's own WhatsApp identity — auto-detected at connection
 // time (see index.js), never something a contact can influence.
@@ -68,7 +73,7 @@ export async function handleOwnerCommand(sock, remoteJid, text) {
 
   if (command === "/list") {
     console.log("[COMMAND] /list recognized as owner command");
-    await sock.sendMessage(remoteJid, { text: COMMANDS_LIST_TEXT });
+    await sock.sendMessage(remoteJid, { text: commandsListText() });
     return true;
   }
 

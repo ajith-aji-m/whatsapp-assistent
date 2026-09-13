@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WhatsApp Personal Assistant — Setup</title>
+<title>WhatsApp AI Assistant — Setup</title>
 <style>
   :root {
     color-scheme: light dark;
@@ -41,12 +41,12 @@
     border-radius: 14px;
     padding: 28px;
     width: 100%;
-    max-width: 420px;
+    max-width: 460px;
   }
   h1 { font-size: 1.25rem; margin: 0 0 4px; }
   .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; }
   label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 6px; }
-  input[type="text"], input[type="password"], select {
+  input[type="text"], input[type="password"], select, textarea {
     width: 100%;
     padding: 10px 12px;
     border-radius: 8px;
@@ -54,7 +54,10 @@
     background: var(--bg);
     color: var(--text);
     font-size: 0.95rem;
+    font-family: inherit;
   }
+  textarea { resize: vertical; min-height: 90px; line-height: 1.4; }
+  textarea#promptText { min-height: 160px; }
   .radio-row { display: flex; gap: 10px; margin-top: 4px; }
   .radio-row label {
     flex: 1;
@@ -82,7 +85,10 @@
     cursor: pointer;
   }
   button.secondary { background: var(--accent-off); margin-top: 10px; }
+  button.link { background: none; color: var(--muted); font-weight: 500; text-decoration: underline; padding: 4px; margin-top: 10px; }
   button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 10px; }
+  .btn-row button { margin-top: 10px; }
   .hint { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
   .hidden { display: none !important; }
   .center { text-align: center; }
@@ -105,22 +111,30 @@
     margin-top: 12px;
   }
   .err { color: var(--danger); font-size: 0.85rem; margin-top: 8px; }
+  .step-track { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 6px; }
 </style>
 </head>
 <body>
 <div class="card">
 
-  <!-- SETUP SCREEN -->
+  <!-- STEP 1: OWNER / ASSISTANT DETAILS -->
   <div id="screen-setup">
-    <h1>WhatsApp Personal Assistant</h1>
-    <p class="sub">Set up your assistant, then connect WhatsApp.</p>
+    <div class="step-track">Step 1 of 4 — Assistant details</div>
+    <h1>Set Up Your Assistant</h1>
+    <p class="sub">Tell us who you are and how the assistant should behave, then connect WhatsApp.</p>
 
     <form id="setupForm">
-      <label for="name">Name</label>
-      <input type="text" id="name" placeholder="Ajith" required />
+      <label for="ownerName">Owner / User Name</label>
+      <input type="text" id="ownerName" placeholder="Ajith" required />
 
-      <label for="role">Role / Occupation</label>
-      <input type="text" id="role" placeholder="Developer" required />
+      <label for="assistantName">Assistant Name</label>
+      <input type="text" id="assistantName" placeholder="Alex" required />
+
+      <label for="role">Assistant Role</label>
+      <input type="text" id="role" placeholder="Personal Assistant, Clinic Assistant, Sales Assistant..." required />
+
+      <label for="instructions">Behavior / Instructions</label>
+      <textarea id="instructions" placeholder="You are my personal assistant. Help me manage conversations, respond naturally on my behalf, collect important information, and communicate professionally and politely." required></textarea>
 
       <label>Availability</label>
       <div class="radio-row">
@@ -128,13 +142,46 @@
         <label><input type="radio" name="availability" value="UNAVAILABLE" checked /><span>Unavailable</span></label>
       </div>
 
-      <button type="submit" id="setupSubmit">Next</button>
+      <button type="submit" id="setupSubmit">Generate Prompt</button>
       <div class="err hidden" id="setupError"></div>
     </form>
   </div>
 
-  <!-- QR / CONNECTING SCREEN -->
+  <!-- STEP 2: GENERATED PROMPT REVIEW -->
+  <div id="screen-prompt" class="hidden">
+    <div class="step-track">Step 2 of 4 — Review prompt</div>
+    <h1>Review Assistant Prompt</h1>
+    <p class="sub">This is what your assistant will follow. Edit it directly if you'd like, or regenerate it.</p>
+
+    <label for="promptText">Generated Prompt</label>
+    <textarea id="promptText"></textarea>
+
+    <div class="btn-row">
+      <button type="button" class="secondary" id="btnRegenerate">Regenerate Prompt</button>
+      <button type="button" class="secondary" id="btnEditToggle">Edit Prompt</button>
+    </div>
+    <button type="button" id="btnContinue">Continue</button>
+    <div class="err hidden" id="promptError"></div>
+  </div>
+
+  <!-- STEP 3: VERIFICATION CODE -->
+  <div id="screen-verify" class="hidden">
+    <div class="step-track">Step 3 of 4 — Verification</div>
+    <h1>Enter Verification Code</h1>
+    <p class="sub">Enter the access code to continue to WhatsApp pairing.</p>
+
+    <form id="verifyForm">
+      <label for="accessCode">Verification Code</label>
+      <input type="password" id="accessCode" autocomplete="off" required />
+
+      <button type="submit" id="verifySubmit">Verify</button>
+      <div class="err hidden" id="verifyError"></div>
+    </form>
+  </div>
+
+  <!-- STEP 4: QR / CONNECTING SCREEN -->
   <div id="screen-qr" class="hidden center">
+    <div class="step-track">Step 4 of 4 — Connect WhatsApp</div>
     <h1>Connect WhatsApp</h1>
     <div id="qrStatusLine" class="status-line">Starting...</div>
     <img id="qrImg" class="hidden" alt="WhatsApp QR code" />
@@ -155,6 +202,7 @@
 
     <button type="button" class="secondary" id="btnSummary">Get Summary</button>
     <button type="button" class="secondary" id="btnCommands">Show Commands</button>
+    <button type="button" class="link" id="btnLogout">Logout</button>
 
     <pre id="resultBox" class="hidden"></pre>
   </div>
@@ -165,6 +213,8 @@
   const el = (id) => document.getElementById(id);
   const screens = {
     setup: el("screen-setup"),
+    prompt: el("screen-prompt"),
+    verify: el("screen-verify"),
     qr: el("screen-qr"),
     dashboard: el("screen-dashboard"),
   };
@@ -173,14 +223,22 @@
     for (const key in screens) screens[key].classList.toggle("hidden", key !== name);
   }
 
+  // Carries the wizard's details across steps 1-2 (owner/assistant/role/
+  // instructions), so "Regenerate Prompt" and "Continue" can resend them
+  // without asking the owner to retype anything.
+  let wizardDetails = null;
+
   function renderAvailabilityButtons(availability) {
     el("btnAvailable").classList.toggle("active", availability === "AVAILABLE");
     el("btnUnavailable").classList.toggle("active", availability === "UNAVAILABLE");
   }
 
+  // Applies a status snapshot for an AUTHENTICATED browser only — decides
+  // between the QR screen and the dashboard. Never called with a snapshot
+  // from a browser that hasn't passed verification yet.
   function applyStatus(data) {
     if (data.profile) {
-      el("dashName").textContent = data.profile.name || "Assistant";
+      el("dashName").textContent = data.profile.assistantName || data.profile.name || "Assistant";
       el("dashRole").textContent = data.profile.role || "";
       renderAvailabilityButtons(data.profile.availability);
     }
@@ -200,30 +258,37 @@
       el("qrStatusLine").textContent =
         data.status === "reconnecting" ? "Reconnecting to WhatsApp..." : "Starting WhatsApp connection...";
     } else if (data.status === "logged_out") {
+      // Transient: the server clears the stale session and restarts itself
+      // right away, which shortly follows with a fresh "qr" status update
+      // over this same SSE stream — no manual restart needed.
       showScreen("qr");
       el("qrImg").classList.add("hidden");
-      el("qrStatusLine").textContent =
-        "Logged out. Delete the auth_info_baileys folder on the server and restart to re-scan.";
+      el("qrStatusLine").textContent = "Session expired — generating a new QR code...";
     }
-    // "idle" -> stay on whichever screen is already showing (setup, normally).
   }
 
-  // Live updates — no manual refresh needed for new QR codes or state changes.
+  // Live updates — no manual refresh needed for new QR codes or state
+  // changes. Ignored entirely until this browser has verified the access
+  // code (data.authenticated stays false until then).
   const events = new EventSource("/api/events");
-  events.onmessage = (e) => applyStatus(JSON.parse(e.data));
+  events.onmessage = (e) => {
+    const data = JSON.parse(e.data);
+    if (data.authenticated) applyStatus(data);
+  };
 
-  // Initial snapshot decides which screen to start on (e.g. skip setup
-  // entirely if this process is already connected).
+  // Initial snapshot decides which of the four steps to start on: already
+  // authenticated -> straight to QR/dashboard (per live status); configured
+  // but not yet authenticated (e.g. after logout) -> verification screen,
+  // skipping setup entirely; otherwise -> the setup wizard from step 1.
   fetch("/api/status")
     .then((r) => r.json())
     .then((data) => {
-      if (data.status === "connected" || data.status === "qr" || data.status === "connecting") {
+      if (data.authenticated) {
         applyStatus(data);
+      } else if (data.configured) {
+        showScreen("verify");
       } else {
         showScreen("setup");
-        renderAvailabilityButtons(data.profile?.availability || "UNAVAILABLE");
-        if (data.profile?.name) el("name").value = data.profile.name;
-        if (data.profile?.role) el("role").value = data.profile.role;
       }
     });
 
@@ -232,27 +297,127 @@
     el("setupError").classList.add("hidden");
     el("setupSubmit").disabled = true;
 
-    const availability = document.querySelector('input[name="availability"]:checked').value;
-    const body = {
-      name: el("name").value,
-      role: el("role").value,
-      availability,
+    wizardDetails = {
+      ownerName: el("ownerName").value.trim(),
+      assistantName: el("assistantName").value.trim(),
+      role: el("role").value.trim(),
+      instructions: el("instructions").value.trim(),
+      availability: document.querySelector('input[name="availability"]:checked').value,
     };
 
     try {
-      const res = await fetch("/api/setup", {
+      const res = await fetch("/api/generate-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
+        body: JSON.stringify(wizardDetails),
       });
-      if (!res.ok) throw new Error("Setup failed");
-      showScreen("qr");
-      el("qrStatusLine").textContent = "Starting WhatsApp connection...";
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Prompt generation failed");
+
+      el("promptText").value = data.prompt;
+      el("promptText").setAttribute("readonly", "readonly");
+      el("btnEditToggle").textContent = "Edit Prompt";
+      showScreen("prompt");
     } catch (err) {
-      el("setupError").textContent = "Could not save setup. Please try again.";
+      el("setupError").textContent = err.message || "Could not generate a prompt. Please try again.";
       el("setupError").classList.remove("hidden");
     } finally {
       el("setupSubmit").disabled = false;
+    }
+  });
+
+  el("btnEditToggle").addEventListener("click", () => {
+    const isReadonly = el("promptText").hasAttribute("readonly");
+    if (isReadonly) {
+      el("promptText").removeAttribute("readonly");
+      el("promptText").focus();
+      el("btnEditToggle").textContent = "Lock Prompt";
+    } else {
+      el("promptText").setAttribute("readonly", "readonly");
+      el("btnEditToggle").textContent = "Edit Prompt";
+    }
+  });
+
+  el("btnRegenerate").addEventListener("click", async () => {
+    if (!wizardDetails) return;
+    el("promptError").classList.add("hidden");
+    el("btnRegenerate").disabled = true;
+    el("btnRegenerate").textContent = "Regenerating...";
+
+    try {
+      const res = await fetch("/api/generate-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(wizardDetails),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Prompt generation failed");
+      el("promptText").value = data.prompt;
+    } catch (err) {
+      el("promptError").textContent = err.message || "Could not regenerate the prompt.";
+      el("promptError").classList.remove("hidden");
+    } finally {
+      el("btnRegenerate").disabled = false;
+      el("btnRegenerate").textContent = "Regenerate Prompt";
+    }
+  });
+
+  el("btnContinue").addEventListener("click", async () => {
+    if (!wizardDetails) return;
+    el("promptError").classList.add("hidden");
+    el("btnContinue").disabled = true;
+
+    const systemPrompt = el("promptText").value.trim();
+    if (!systemPrompt) {
+      el("promptError").textContent = "Prompt can't be empty.";
+      el("promptError").classList.remove("hidden");
+      el("btnContinue").disabled = false;
+      return;
+    }
+
+    try {
+      const res = await fetch("/api/confirm-setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...wizardDetails, systemPrompt }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Setup failed");
+      showScreen("verify");
+    } catch (err) {
+      el("promptError").textContent = err.message || "Could not save setup. Please try again.";
+      el("promptError").classList.remove("hidden");
+    } finally {
+      el("btnContinue").disabled = false;
+    }
+  });
+
+  el("verifyForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    el("verifyError").classList.add("hidden");
+    el("verifySubmit").disabled = true;
+
+    try {
+      const res = await fetch("/api/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: el("accessCode").value }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Invalid verification code.");
+
+      el("accessCode").value = "";
+      showScreen("qr");
+      el("qrStatusLine").textContent = "Starting WhatsApp connection...";
+      // Pick up current state right away instead of waiting for the next SSE tick.
+      const statusRes = await fetch("/api/status");
+      const statusData = await statusRes.json();
+      if (statusData.authenticated) applyStatus(statusData);
+    } catch (err) {
+      el("verifyError").textContent = err.message || "Invalid verification code.";
+      el("verifyError").classList.remove("hidden");
+    } finally {
+      el("verifySubmit").disabled = false;
     }
   });
 
@@ -284,6 +449,15 @@
     const res = await fetch("/api/commands");
     const data = await res.json();
     el("resultBox").textContent = data.text;
+  });
+
+  // Browser/web-session logout only — the WhatsApp connection and all saved
+  // data stay untouched server-side (see web.js). Reloading re-runs the
+  // initial /api/status check above, which sends this now-unauthenticated
+  // browser straight to the verification screen (setup is already done).
+  el("btnLogout").addEventListener("click", async () => {
+    await fetch("/api/logout", { method: "POST" });
+    location.reload();
   });
 </script>
 </body>

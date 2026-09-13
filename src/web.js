@@ -271,6 +271,24 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
+      // Lets the owner rename the assistant from the dashboard, without
+      // going back through setup. Only the display name changes here — the
+      // system prompt already generated during setup is untouched (it may
+      // still reference the old name in its wording; re-running "Train
+      // Assistant" from setup is how that gets regenerated).
+      if (req.method === "POST" && url.pathname === "/api/assistant-name") {
+        const body = await readJsonBody(req);
+        const assistantName = typeof body.assistantName === "string" ? body.assistantName.trim() : "";
+        if (!assistantName) {
+          sendJson(res, 400, { ok: false, error: "Assistant name can't be empty." });
+          return;
+        }
+        profile.assistantName = assistantName;
+        console.log("[WEB] Assistant name updated via dashboard.");
+        sendJson(res, 200, { ok: true, assistantName });
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/api/availability") {
         const body = await readJsonBody(req);
         if (body.availability !== "AVAILABLE" && body.availability !== "UNAVAILABLE") {

@@ -195,6 +195,11 @@
 
     <div class="status-line"><span class="dot green"></span>WhatsApp: Connected</div>
 
+    <label for="dashAssistantName">Assistant Name</label>
+    <input type="text" id="dashAssistantName" />
+    <button type="button" class="secondary" id="btnSaveAssistantName">Save Assistant Name</button>
+    <div class="err hidden" id="assistantNameError"></div>
+
     <label>Availability</label>
     <div class="avail-row">
       <button type="button" id="btnAvailable">Available</button>
@@ -246,6 +251,10 @@
       el("dashName").textContent = data.profile.assistantName || data.profile.name || "Assistant";
       el("dashRole").textContent = data.profile.role || "";
       renderAvailabilityButtons(data.profile.availability);
+      // Don't clobber the input while the owner is actively editing it.
+      if (document.activeElement !== el("dashAssistantName")) {
+        el("dashAssistantName").value = data.profile.assistantName || "";
+      }
     }
 
     if (data.status === "connected") {
@@ -460,6 +469,33 @@
   }
   el("btnAvailable").addEventListener("click", () => setAvailability("AVAILABLE"));
   el("btnUnavailable").addEventListener("click", () => setAvailability("UNAVAILABLE"));
+
+  el("btnSaveAssistantName").addEventListener("click", async () => {
+    el("assistantNameError").classList.add("hidden");
+    const assistantName = el("dashAssistantName").value.trim();
+    if (!assistantName) {
+      el("assistantNameError").textContent = "Assistant name can't be empty.";
+      el("assistantNameError").classList.remove("hidden");
+      return;
+    }
+
+    el("btnSaveAssistantName").disabled = true;
+    try {
+      const res = await fetch("/api/assistant-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ assistantName }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Could not save the assistant name.");
+      el("dashName").textContent = data.assistantName;
+    } catch (err) {
+      el("assistantNameError").textContent = err.message || "Could not save the assistant name.";
+      el("assistantNameError").classList.remove("hidden");
+    } finally {
+      el("btnSaveAssistantName").disabled = false;
+    }
+  });
 
   el("btnSummary").addEventListener("click", async () => {
     el("resultBox").classList.remove("hidden");

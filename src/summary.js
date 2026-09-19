@@ -1,8 +1,7 @@
-import { callNvidiaChat } from "./nvidia.js";
+import { callGroqChat } from "./groq.js";
 import { getPendingConversations, markConversationHandled } from "./store.js";
 
 const SUMMARY_SYSTEM_PROMPT =
-  "detailed thinking off\n" +
   "You summarize a WhatsApp conversation for a personal assistant. " +
   'Write 1-4 short bullet points starting with "-", in third person, describing what the contact wanted ' +
   "and any important detail or request. Skip bare greetings like \"Hi\"/\"Hello\" on their own. " +
@@ -12,7 +11,7 @@ const SUMMARY_SYSTEM_PROMPT =
 
 async function summarizeMessages(messages) {
   const transcript = messages.map((m) => `- ${m.text}`).join("\n");
-  const reply = await callNvidiaChat([
+  const reply = await callGroqChat([
     { role: "system", content: SUMMARY_SYSTEM_PROMPT },
     { role: "user", content: `Messages received:\n${transcript}\n\nSummarize them.` },
   ]);

@@ -1,5 +1,5 @@
 import { profile } from "./config.js";
-import { callNvidiaChat } from "./nvidia.js";
+import { callGroqChat } from "./groq.js";
 
 const FALLBACK_REPLY =
   "Sorry, I'm having trouble responding right now. Please leave your message and I'll make sure this gets passed on.";
@@ -24,7 +24,6 @@ const systemPrompt = () => {
       : `${profile.name} is currently UNAVAILABLE. Collect what the contact wants to convey, naturally and professionally.`;
 
   return (
-    "detailed thinking off\n" +
     `${basePrompt}\n\n${availabilityNote}\n\n` +
     `Do not make commitments on ${profile.name}'s behalf (no promising calls, meetings, deadlines, availability, etc.) — you can acknowledge a request and say you'll pass it on, but never promise on ${profile.name}'s behalf. ` +
     `Do not invent any fact that hasn't been explicitly given to you in this conversation or in this prompt. ` +
@@ -36,7 +35,7 @@ const systemPrompt = () => {
 
 // Generates the assistant's next reply from the conversation so far
 // (including the contact's latest message, already recorded by the caller).
-// Never throws — on any NVIDIA failure, logs it and returns a safe fallback
+// Never throws — on any Groq failure, logs it and returns a safe fallback
 // so a transient API issue never crashes message handling or leaves the
 // contact without any response at all.
 export async function generateAssistantReply(conversation) {
@@ -49,10 +48,10 @@ export async function generateAssistantReply(conversation) {
   ];
 
   try {
-    const reply = await callNvidiaChat(messages);
+    const reply = await callGroqChat(messages);
     return reply || `Got it, thanks — I'll make sure ${profile.name} sees this.`;
   } catch (err) {
-    console.error("❌ NVIDIA error while generating assistant reply:", err.message);
+    console.error("❌ Groq error while generating assistant reply:", err.message);
     return FALLBACK_REPLY;
   }
 }

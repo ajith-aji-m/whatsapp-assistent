@@ -18,14 +18,11 @@ import { setStatus } from "./connectionState.js";
 // keeps the terminal readable while we test message handling.
 const logger = pino({ level: "silent" });
 
-if (!process.env.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY === "YOUR_NVIDIA_API_KEY_HERE") {
-  console.error("❌ NVIDIA_API_KEY is missing in .env — the assistant replies/summary will fail until it's set.");
-}
-
 if (!process.env.GROQ_API_KEY) {
   console.error(
-    "❌ GROQ_API_KEY is missing in .env — the owner assistant's natural-language routing and chat will fail " +
-      "until it's set (slash commands like /task, /note, /remind still work without it)."
+    "❌ GROQ_API_KEY is missing in .env — contact auto-replies, the pending-conversation summary, and the " +
+      "owner assistant's natural-language routing/chat will all fail until it's set (the owner assistant's " +
+      "slash commands like /task, /note, /remind still work without it)."
   );
 }
 
@@ -169,9 +166,9 @@ async function startBot() {
 
         // Personal-assistant mode, but NOT silent after the first message:
         // the very first message from a contact while UNAVAILABLE always
-        // gets this exact fixed greeting (no NVIDIA call needed for it).
+        // gets this exact fixed greeting (no Groq call needed for it).
         // Every message after that — and anything at all while AVAILABLE —
-        // gets a natural NVIDIA-generated reply that keeps the conversation
+        // gets a natural Groq-generated reply that keeps the conversation
         // going (see assistant.js), while still recording everything for
         // the next /summary.
         const reply =
@@ -183,7 +180,7 @@ async function startBot() {
         recordMessage(remoteJid, "assistant", reply);
       } catch (err) {
         // generateAssistantReply already has its own fallback/catch for
-        // NVIDIA failures — this only catches something else going wrong
+        // Groq failures — this only catches something else going wrong
         // (e.g. sock.sendMessage itself failing), so the bot never crashes.
         console.error("❌ Error handling message:", err.message);
       }

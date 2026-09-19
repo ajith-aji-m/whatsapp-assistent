@@ -7,7 +7,7 @@ import { profile, setAvailability } from "./config.js";
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
 import { commandsListText } from "./commands.js";
-import { generateSystemPrompt } from "./nvidia.js";
+import { generateSystemPrompt } from "./groq.js";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -90,7 +90,7 @@ function clientIp(req) {
 }
 
 // Builds the JSON snapshot sent both from GET /api/status and over the SSE
-// stream. Deliberately excludes NVIDIA_API_KEY/NVIDIA_MODEL, the access
+// stream. Deliberately excludes GROQ_API_KEY/GROQ_MODEL, the access
 // code, and any WhatsApp auth/session data. Before the browser has verified
 // the access code, this reveals nothing about the live connection (no QR, no
 // status) — just enough to decide whether to show the setup wizard or the
@@ -191,7 +191,7 @@ export function startWebServer({ startBot, host, port }) {
       }
 
       // Step 1→2 of the setup wizard: given the owner/assistant details,
-      // generate a system prompt via NVIDIA for the owner to review. Not
+      // generate a system prompt via Groq for the owner to review. Not
       // gated by the access code — that only guards the QR/dashboard step —
       // and nothing here starts the WhatsApp connection yet.
       if (req.method === "POST" && url.pathname === "/api/generate-prompt") {
@@ -239,7 +239,7 @@ export function startWebServer({ startBot, host, port }) {
         profile.role = role;
         profile.instructions = instructions;
         profile.systemPrompt = systemPrompt;
-        // NVIDIA_API_KEY / NVIDIA_MODEL / ASSISTANT_ACCESS_CODE are
+        // GROQ_API_KEY / GROQ_MODEL / ASSISTANT_ACCESS_CODE are
         // intentionally NOT accepted here — they come only from .env, never
         // from the browser.
 

@@ -1,5 +1,5 @@
 // New entry point (replaces calling startBot() directly). All existing
-// Baileys/NVIDIA logic in index.js is untouched — this just starts the web
+// Baileys/AI logic in index.js is untouched — this just starts the web
 // UI first, and lets the web UI's "Next" button (or an already-connected
 // session) decide when startBot() actually runs.
 import { startBot } from "./index.js";

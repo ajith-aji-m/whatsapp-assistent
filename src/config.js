@@ -12,7 +12,7 @@ export const profile = {
   // around only so "Regenerate Prompt" can re-run generation without asking
   // again. Not sent to WhatsApp contacts directly.
   instructions: null,
-  // Final system prompt driving WhatsApp replies — either NVIDIA-generated
+  // Final system prompt driving WhatsApp replies — either Groq-generated
   // from role+instructions, or edited by the owner, via the setup wizard.
   // In-memory only for the current run (see assistant.js for the fallback
   // used when this hasn't been set yet).

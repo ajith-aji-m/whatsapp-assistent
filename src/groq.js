@@ -1,11 +1,12 @@
 import "./env.js"; // ensures .env is loaded before we read process.env below
 import { describeNowForPrompt } from "./time.js";
 
-// AI provider for the owner-facing productivity assistant (tasks, reminders,
-// notes, links, search, natural-language routing, and normal conversation —
-// see ownerAssistant.js). Deliberately separate from nvidia.js, which keeps
-// powering the existing contact-facing auto-reply/summary flow unchanged —
-// this file only ever talks to Groq's OpenAI-compatible Chat Completions API.
+// Sole AI provider for this app — everything that needs an AI call goes
+// through Groq's OpenAI-compatible Chat Completions API: the owner-facing
+// productivity assistant (tasks/reminders/notes/links/search/chat — see
+// ownerAssistant.js), the contact-facing auto-reply/summary flow (see
+// assistant.js/summary.js), and the setup wizard's prompt generation (see
+// generateSystemPrompt below, used by web.js).
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CHAT_TIMEOUT_MS = 20_000;
 const LINK_TITLE_TIMEOUT_MS = 8_000;
@@ -15,11 +16,12 @@ function groqConfigured() {
 }
 
 // Low-level helper: sends a chat messages array to Groq and returns the
-// reply text. Mirrors nvidia.js's callNvidiaChat shape (throws on any
-// failure — network, timeout, non-2xx, missing key — and leaves the fallback
-// decision to the caller) so both AI call sites in this project behave the
-// same way to whatever calls them.
-async function callGroqChat(messages, { timeoutMs = CHAT_TIMEOUT_MS, jsonMode = false } = {}) {
+// reply text. Throws on any failure — network, timeout, non-2xx, missing
+// key — and leaves the fallback decision to the caller, so every AI call
+// site in this project (owner assistant, contact auto-reply, pending-
+// conversation summary, setup-wizard prompt generation) behaves the same
+// way and degrades the same way on failure.
+export async function callGroqChat(messages, { timeoutMs = CHAT_TIMEOUT_MS, jsonMode = false } = {}) {
   if (!groqConfigured()) {
     throw new Error("GROQ_API_KEY is not set");
   }
@@ -152,6 +154,40 @@ export async function generateLinkTitle(url) {
   );
   const title = reply.replace(/^["']|["']$/g, "").trim();
   return title || null;
+}
+
+const PROMPT_GENERATION_SYSTEM =
+  "You write system prompts for a WhatsApp AI personal assistant. Given an owner's name, the assistant's name, " +
+  "its role, and behavior/instructions, write ONE clear system prompt (plain text, no headings, no markdown, no " +
+  "quotes around it) that makes the assistant behave exactly as described for that role. The prompt must instruct " +
+  "the assistant to: speak in first person as the assistant and never claim to be the owner; communicate in a " +
+  "warm, natural, human-like way — never like a stiff, robotic, scripted chatbot; understand and stay within the " +
+  "owner's role/context; answer relevant questions appropriately; keep the conversation flowing naturally across " +
+  "multiple messages instead of restarting each time; collect any important information the contact shares (who " +
+  "they are, what they want, and any relevant details) for the owner; and never respond to or engage with " +
+  "WhatsApp group messages. Follow the given instructions closely. Keep it concise — 4 to 8 sentences. Output " +
+  "ONLY the system prompt text, nothing else (no preamble, no explanation).";
+
+// Generates a system prompt for the WhatsApp assistant from the setup
+// wizard's role + instructions, instead of requiring the owner to write one
+// by hand. Used by web.js for the "Train Assistant"/"Regenerate Prompt"
+// setup step. Lets a failure propagate (unlike the rest of this file) so the
+// web UI can show a real error instead of silently producing a broken
+// assistant prompt.
+export async function generateSystemPrompt({ ownerName, assistantName, role, instructions }) {
+  const userPrompt =
+    `Owner name: ${ownerName}\n` +
+    `Assistant name: ${assistantName}\n` +
+    `Assistant role: ${role}\n` +
+    `Behavior / instructions: ${instructions}\n\n` +
+    "Write the system prompt now.";
+
+  const reply = await callGroqChat([
+    { role: "system", content: PROMPT_GENERATION_SYSTEM },
+    { role: "user", content: userPrompt },
+  ]);
+
+  return reply.trim();
 }
 
 export { groqConfigured };

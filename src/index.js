@@ -11,6 +11,7 @@ import { profile } from "./config.js"; // also loads .env as a side effect (see 
 import { hasConversation, recordMessage } from "./store.js";
 import { handleOwnerCommand, isAjith } from "./commands.js";
 import { generateAssistantReply } from "./assistant.js";
+import { handleOwnerMessage } from "./ownerAssistant.js";
 import { setStatus } from "./connectionState.js";
 
 // Back to "silent" now that the connection itself is confirmed working —
@@ -19,6 +20,13 @@ const logger = pino({ level: "silent" });
 
 if (!process.env.NVIDIA_API_KEY || process.env.NVIDIA_API_KEY === "YOUR_NVIDIA_API_KEY_HERE") {
   console.error("❌ NVIDIA_API_KEY is missing in .env — the assistant replies/summary will fail until it's set.");
+}
+
+if (!process.env.GROQ_API_KEY) {
+  console.error(
+    "❌ GROQ_API_KEY is missing in .env — the owner assistant's natural-language routing and chat will fail " +
+      "until it's set (slash commands like /task, /note, /remind still work without it)."
+  );
 }
 
 if (!process.env.ASSISTANT_ACCESS_CODE) {
@@ -139,11 +147,16 @@ async function startBot() {
       if (recognizedAsOwnerCommand) {
         try {
           const handled = await handleOwnerCommand(sock, remoteJid, text);
-          if (handled) continue;
+          // Not one of the pre-existing /available, /unavailable, /summary,
+          // /list commands — hand it to the owner's own productivity
+          // assistant (tasks/reminders/notes/links/search/chat, see
+          // ownerAssistant.js). Still exactly the same isAjith()-gated,
+          // group-excluded self-chat this block already only runs for.
+          if (!handled) await handleOwnerMessage(sock, remoteJid, text);
         } catch (err) {
           console.error("❌ Error handling owner command:", err.message);
-          continue;
         }
+        continue; // the owner's own message never falls through to the contact-reply flow below
       }
 
       if (fromMe) continue; // ignore our own messages/replies to prevent loops

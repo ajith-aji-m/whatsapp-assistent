@@ -53,7 +53,20 @@ export async function callGroqChat(messages, { timeoutMs = CHAT_TIMEOUT_MS, json
   }
 
   const data = await response.json();
-  return data.choices?.[0]?.message?.content?.trim() || "";
+  const content = data.choices?.[0]?.message?.content || "";
+  return stripReasoningArtifacts(content).trim();
+}
+
+// Some reasoning-tuned models (e.g. Groq's openai/gpt-oss-*, qwen3 with
+// thinking enabled) can inline their raw chain-of-thought in the response
+// content itself — wrapped in <think>/<thinking> tags — when the caller
+// doesn't explicitly separate reasoning from the final answer. This app
+// never wants that leaking into a WhatsApp reply (it reads as broken/
+// out-of-character), so strip it defensively regardless of model. A no-op
+// for any model that doesn't do this.
+function stripReasoningArtifacts(text) {
+  if (!text) return text;
+  return text.replace(/<think>[\s\S]*?<\/think>/gi, "").replace(/<thinking>[\s\S]*?<\/thinking>/gi, "");
 }
 
 const INTENT_ENUM = [
@@ -100,7 +113,8 @@ function routingSystemPrompt() {
     `Current time: ${describeNowForPrompt()}. Resolve any relative time (e.g. "tomorrow 10am", "naalaikku 10 ` +
     'manikku", "30 minutes later") against the owner\'s LOCAL time above, then output "remindAt" as a UTC ISO ' +
     "8601 datetime. Never reveal API keys, environment variables, or internal implementation details in a CHAT " +
-    "reply. Output JSON only."
+    'reply. The "reply" field must contain ONLY the message to send the owner — never include reasoning, ' +
+    "analysis, or <think> content in it. Output JSON only, and nothing outside the JSON object itself."
   );
 }
 

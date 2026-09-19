@@ -10,9 +10,24 @@ import { describeNowForPrompt } from "./time.js";
 const GROQ_API_URL = "https://api.groq.com/openai/v1/chat/completions";
 const CHAT_TIMEOUT_MS = 20_000;
 const LINK_TITLE_TIMEOUT_MS = 8_000;
+const RATE_LIMIT_MAX_RETRIES = 2;
+const RATE_LIMIT_MAX_WAIT_MS = 10_000;
 
 function groqConfigured() {
   return !!process.env.GROQ_API_KEY;
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Groq's 429 body includes a human-readable "Please try again in 4.32s"
+// hint with the exact wait needed for the token bucket to refill. Returns
+// null if the error text doesn't match (caller should not retry blindly).
+function parseRetryAfterMs(errText) {
+  const match = /try again in ([\d.]+)s/i.exec(errText);
+  if (!match) return null;
+  return Math.min(Math.ceil(parseFloat(match[1]) * 1000), RATE_LIMIT_MAX_WAIT_MS);
 }
 
 // Low-level helper: sends a chat messages array to Groq and returns the
@@ -29,32 +44,46 @@ export async function callGroqChat(messages, { timeoutMs = CHAT_TIMEOUT_MS, json
   const body = { model: process.env.GROQ_MODEL, messages };
   if (jsonMode) body.response_format = { type: "json_object" };
 
-  let response;
-  try {
-    response = await fetch(GROQ_API_URL, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (err) {
-    if (err.name === "TimeoutError" || err.name === "AbortError") {
-      throw new Error("Groq API request timed out");
+  for (let attempt = 0; ; attempt++) {
+    let response;
+    try {
+      response = await fetch(GROQ_API_URL, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.GROQ_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (err) {
+      if (err.name === "TimeoutError" || err.name === "AbortError") {
+        throw new Error("Groq API request timed out");
+      }
+      throw err;
     }
-    throw err;
-  }
 
-  if (!response.ok) {
-    const errText = await response.text().catch(() => "");
-    throw new Error(`Groq API request failed (${response.status}): ${errText}`);
-  }
+    if (!response.ok) {
+      const errText = await response.text().catch(() => "");
 
-  const data = await response.json();
-  const content = data.choices?.[0]?.message?.content || "";
-  return stripReasoningArtifacts(content).trim();
+      // TPM/RPM rate limit: back off for exactly as long as Groq says the
+      // token bucket needs to refill, then retry, instead of immediately
+      // giving up (or hammering the API again right away).
+      if (response.status === 429 && attempt < RATE_LIMIT_MAX_RETRIES) {
+        const waitMs = parseRetryAfterMs(errText);
+        if (waitMs !== null) {
+          await sleep(waitMs);
+          continue;
+        }
+      }
+
+      throw new Error(`Groq API request failed (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content || "";
+    return stripReasoningArtifacts(content).trim();
+  }
 }
 
 // Some reasoning-tuned models (e.g. Groq's openai/gpt-oss-*, qwen3 with

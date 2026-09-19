@@ -13,6 +13,7 @@ import { handleOwnerCommand, isAjith } from "./commands.js";
 import { generateAssistantReply } from "./assistant.js";
 import { handleOwnerMessage } from "./ownerAssistant.js";
 import { setStatus } from "./connectionState.js";
+import { markSelfSent, isSelfSent } from "./selfEcho.js";
 
 // Back to "silent" now that the connection itself is confirmed working —
 // keeps the terminal readable while we test message handling.
@@ -49,6 +50,20 @@ async function startBot() {
     logger,
     version,
   });
+
+  // Wrap sendMessage so EVERY message this bot ever sends — from here, from
+  // commands.js, summary.js, ownerAssistant.js, reminderScheduler.js, all of
+  // which call sock.sendMessage on this same object — gets its WhatsApp
+  // message id recorded (see selfEcho.js for why this matters: without it,
+  // a message this bot sends to the owner's own self-chat comes back
+  // through messages.upsert indistinguishable from something the owner
+  // typed, and gets replied to again, forever).
+  const originalSendMessage = sock.sendMessage.bind(sock);
+  sock.sendMessage = async (jid, ...rest) => {
+    const sent = await originalSendMessage(jid, ...rest);
+    markSelfSent(sent?.key?.id);
+    return sent;
+  };
 
   // Save updated credentials whenever they change
   sock.ev.on("creds.update", saveCreds);
@@ -119,6 +134,10 @@ async function startBot() {
   sock.ev.on("messages.upsert", async ({ messages }) => {
     for (const msg of messages) {
       if (!msg.message) continue; // no content (e.g. protocol/receipt messages)
+
+      // Our own message echoing back (see selfEcho.js) — never process it as
+      // new input, regardless of chat. Must come before every other check.
+      if (isSelfSent(msg.key.id)) continue;
 
       const remoteJid = msg.key.remoteJid;
       const fromMe = !!msg.key.fromMe;

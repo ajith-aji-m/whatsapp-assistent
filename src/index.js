@@ -3,6 +3,7 @@ import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
   jidNormalizedUser,
+  generateMessageIDV2,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
@@ -58,11 +59,18 @@ async function startBot() {
   // a message this bot sends to the owner's own self-chat comes back
   // through messages.upsert indistinguishable from something the owner
   // typed, and gets replied to again, forever).
+  //
+  // The id is generated and marked BEFORE the send happens (not after
+  // awaiting it) — Baileys emits the local "own message" echo via
+  // process.nextTick internally, which can beat the `await` below back to
+  // this function, so marking it post-hoc left a race window where the
+  // bot's own reply slipped past isSelfSent() and got treated as a new
+  // owner message, triggering another AI call and another reply, forever.
   const originalSendMessage = sock.sendMessage.bind(sock);
-  sock.sendMessage = async (jid, ...rest) => {
-    const sent = await originalSendMessage(jid, ...rest);
-    markSelfSent(sent?.key?.id);
-    return sent;
+  sock.sendMessage = async (jid, content, options = {}) => {
+    const messageId = options.messageId || generateMessageIDV2(sock.user?.id);
+    markSelfSent(messageId);
+    return originalSendMessage(jid, content, { ...options, messageId });
   };
 
   // Save updated credentials whenever they change
@@ -179,21 +187,26 @@ async function startBot() {
 
       if (!text) continue; // ignore non-text messages (images, stickers, etc.) for now
 
+      // AVAILABLE means the OWNER is available and handling this contact
+      // personally — the AI must stay completely silent: no reply, no
+      // typing indicator, no LLM call, and (deliberately) no recordMessage
+      // either, so nothing here gets queued up and answered later once the
+      // owner goes UNAVAILABLE again. UNAVAILABLE is the only state in which
+      // the AI acts as the personal assistant for 1-to-1 contacts.
+      if (profile.availability === "AVAILABLE") continue;
+
       try {
         const isFirstMessage = !hasConversation(remoteJid);
         const conversation = recordMessage(remoteJid, "contact", text, msg.pushName);
 
-        // Personal-assistant mode, but NOT silent after the first message:
-        // the very first message from a contact while UNAVAILABLE always
-        // gets this exact fixed greeting (no Groq call needed for it).
-        // Every message after that — and anything at all while AVAILABLE —
-        // gets a natural Groq-generated reply that keeps the conversation
-        // going (see assistant.js), while still recording everything for
-        // the next /summary.
-        const reply =
-          profile.availability === "UNAVAILABLE" && isFirstMessage
-            ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.assistantName}, ${profile.name}'s ${profile.role}. Is there anything you'd like to tell ${profile.name}?`
-            : await generateAssistantReply(conversation);
+        // The very first message from a contact always gets this exact
+        // fixed greeting (no Groq call needed for it); every message after
+        // that gets a natural Groq-generated reply that keeps the
+        // conversation going (see assistant.js), while still recording
+        // everything for the next /summary.
+        const reply = isFirstMessage
+          ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.assistantName}, ${profile.name}'s ${profile.role}. Is there anything you'd like to tell ${profile.name}?`
+          : await generateAssistantReply(conversation);
 
         await sock.sendMessage(remoteJid, { text: reply });
         recordMessage(remoteJid, "assistant", reply);

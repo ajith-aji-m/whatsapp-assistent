@@ -9,8 +9,9 @@ import { sendSummaryToAjith } from "./summary.js";
 export function commandsListText() {
   return (
     "Available commands:\n\n" +
-    `/available — Set ${profile.name}'s availability to available and process pending conversations.\n` +
-    `/unavailable — Set ${profile.name}'s availability to unavailable.\n` +
+    `/available — Mark yourself as available: the AI goes silent for contacts (you handle them yourself), and ` +
+    "you get a summary of what came in while it was active.\n" +
+    `/unavailable — Mark yourself as unavailable: the AI becomes active again for personal 1-to-1 contacts.\n` +
     "/summary — Generate a summary of pending conversations.\n" +
     "/list — Show this list of available commands."
   );
@@ -50,7 +51,10 @@ export async function handleOwnerCommand(sock, remoteJid, text) {
   if (command === "/available") {
     console.log("[COMMAND] /available recognized as owner command");
     setAvailability("AVAILABLE");
-    console.log("[STATE] Availability changed: AVAILABLE");
+    console.log("[STATE] Availability changed: AVAILABLE (AI now silent for contacts)");
+    await sock.sendMessage(remoteJid, {
+      text: "You are now marked as AVAILABLE. I will stay silent for other contacts.",
+    });
     console.log("[SUMMARY] Generating summary...");
     await sendSummaryToAjith(sock, remoteJid);
     return true;
@@ -59,8 +63,10 @@ export async function handleOwnerCommand(sock, remoteJid, text) {
   if (command === "/unavailable") {
     console.log("[COMMAND] /unavailable recognized as owner command");
     setAvailability("UNAVAILABLE");
-    console.log("[STATE] Availability changed: UNAVAILABLE");
-    await sock.sendMessage(remoteJid, { text: "Availability changed to unavailable." });
+    console.log("[STATE] Availability changed: UNAVAILABLE (AI now active for contacts)");
+    await sock.sendMessage(remoteJid, {
+      text: "You are now marked as UNAVAILABLE. I will handle personal 1-to-1 messages.",
+    });
     return true;
   }
 

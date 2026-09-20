@@ -15,6 +15,7 @@ import { generateAssistantReply } from "./assistant.js";
 import { handleOwnerMessage } from "./ownerAssistant.js";
 import { setStatus, connectionState } from "./connectionState.js";
 import { markSelfSent, isSelfSent } from "./selfEcho.js";
+import { isDuplicateMessage } from "./messageDedup.js";
 
 // Back to "silent" now that the connection itself is confirmed working —
 // keeps the terminal readable while we test message handling.
@@ -35,6 +36,20 @@ let suppressNextAutoReconnect = false;
 // so logoutWhatsApp() can unregister it before deleting auth_info_baileys/.
 let currentSaveCreds = null;
 
+// Bumped once per startBot() call and captured by that call as
+// myGeneration (closed over by its connection.update/messages.upsert
+// listeners below) — this is how a socket recognizes it's been superseded,
+// instead of relying on its underlying connection having actually gone
+// silent. Baileys doesn't guarantee an old socket's event emitter stops
+// firing the instant "close" is handled, and a reconnect (see
+// connection.update below) always creates a brand-new socket with its own
+// brand-new listeners; without this, a straggling event on the OLD socket
+// could still run this same handling logic, so both sockets end up
+// processing the same incoming message and sending two replies. Every
+// listener checks myGeneration === socketGeneration before doing anything,
+// so at most one socket's listeners are ever "live" at a time.
+let socketGeneration = 0;
+
 if (!process.env.GROQ_API_KEY) {
   console.error(
     "❌ GROQ_API_KEY is missing in .env — contact auto-replies, the pending-conversation summary, and the " +
@@ -51,6 +66,12 @@ if (!process.env.ASSISTANT_ACCESS_CODE) {
 
 async function startBot() {
   setStatus("connecting");
+
+  // This call's own generation number — closed over by every listener this
+  // call registers below (see socketGeneration's own comment above). As
+  // soon as a LATER startBot() call bumps socketGeneration past this value,
+  // every listener here becomes a no-op.
+  const myGeneration = ++socketGeneration;
 
   // Persist WhatsApp login session in ./auth_info_baileys/
   const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
@@ -106,6 +127,12 @@ async function startBot() {
 
   // Handle connection state changes (QR code, open, close)
   sock.ev.on("connection.update", async (update) => {
+    // A newer startBot() call has already superseded this socket (e.g. an
+    // explicit logout's reconnect raced with an event still in flight on
+    // this one) — let the current socket's own listeners be the only ones
+    // acting on connection state.
+    if (myGeneration !== socketGeneration) return;
+
     const { connection, lastDisconnect, qr } = update;
 
     if (qr) {
@@ -180,8 +207,26 @@ async function startBot() {
 
   // Listen for incoming messages
   sock.ev.on("messages.upsert", async ({ messages }) => {
+    // Same supersession guard as connection.update above — a superseded
+    // socket's messages.upsert must never run this logic, even if Baileys'
+    // internals still fire an event on it after a reconnect has already
+    // handed off to a new socket. This is what actually guarantees "only
+    // one active message-processing listener", rather than trusting the old
+    // socket to simply stay silent.
+    if (myGeneration !== socketGeneration) return;
+
     for (const msg of messages) {
       if (!msg.message) continue; // no content (e.g. protocol/receipt messages)
+
+      // WhatsApp/Baileys can deliver the exact same message more than once
+      // (a delayed/lost delivery receipt makes the server resend it, a
+      // reconnect replays recently-queued messages, a history-sync "append"
+      // event repeats one we already handled live) — key.id is the one
+      // thing guaranteed to identify the actual message, unlike text, which
+      // two different messages can share. Must come before every other
+      // check, including the self-echo one below, so a redelivered message
+      // is never processed twice regardless of what kind of message it is.
+      if (isDuplicateMessage(msg.key.remoteJid, msg.key.id)) continue;
 
       // Our own message echoing back (see selfEcho.js) — never process it as
       // new input, regardless of chat. Must come before every other check.

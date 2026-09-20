@@ -78,6 +78,21 @@
     el(`${prefix}ScheduleNotes`).value = p.notes || "";
   }
 
+  // Response tone presets (Step 1) — quick-fill for the instructions field.
+  const TONE_PRESETS = {
+    professional: "Use a warm, professional, executive-level tone. Be precise, polite, and clear in every response.",
+    casual: "Use a friendly, casual, conversational tone with natural phrasing.",
+    brief: "Be brief and direct — concise bullet points, actionable information only, no fluff.",
+  };
+  qsa("#tonePresets .option-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      qsa("#tonePresets .option-card").forEach((c) => c.classList.remove("selected"));
+      card.classList.add("selected");
+      const preset = TONE_PRESETS[card.dataset.preset];
+      if (preset) el("instructions").value = preset;
+    });
+  });
+
   el("setupScheduleEnabled").addEventListener("change", () => {
     el("setupScheduleFields").classList.toggle("hidden", !el("setupScheduleEnabled").checked);
   });
@@ -613,6 +628,57 @@
       el("commandList").innerHTML = '<div class="empty-note">Could not load commands right now.</div>';
     }
   }
+
+  // Commands page: sandbox terminal — runs the same owner commands WhatsApp
+  // recognizes (see commands.js), via the existing REST endpoints. Not a
+  // simulation: /in and /out really change availability, /summary really
+  // generates a summary, /list reflects the real command list.
+  function termLine(text, cls) {
+    const log = el("terminalLog");
+    const line = document.createElement("div");
+    line.className = cls ? `line ${cls}` : "line";
+    line.textContent = text;
+    log.appendChild(line);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  el("terminalForm").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const input = el("terminalInput");
+    const raw = input.value.trim();
+    if (!raw) return;
+    termLine(`> ${raw}`);
+    input.value = "";
+    const command = raw.toLowerCase();
+
+    if (command === "/in") {
+      await setAvailability("AVAILABLE");
+      termLine("You are now marked as IN. I will stay silent for other contacts.", "out");
+    } else if (command === "/out") {
+      await setAvailability("UNAVAILABLE");
+      termLine("You are now marked as OUT. I will handle personal 1-to-1 messages.", "out");
+    } else if (command === "/summary") {
+      termLine("Generating summary…", "out");
+      try {
+        const res = await fetch("/api/summary", { method: "POST" });
+        const data = await res.json();
+        termLine(data.ok ? data.summary : `Error: ${data.error}`, data.ok ? "out" : "err");
+      } catch {
+        termLine("Error generating summary.", "err");
+      }
+    } else if (command === "/list") {
+      try {
+        const res = await fetch("/api/commands");
+        const data = await res.json();
+        const list = Array.isArray(data.commands) ? data.commands : [];
+        list.forEach((c) => termLine(`${c.command} — ${c.description}`, "out"));
+      } catch {
+        termLine("Could not load commands right now.", "err");
+      }
+    } else {
+      termLine("Unknown command. Try /in, /out, /summary, or /list.", "err");
+    }
+  });
 
   // Logout — browser session only; WhatsApp connection stays untouched
   // server-side (see web.js).

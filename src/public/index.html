@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>WA Assistant — Dashboard</title>
 <link rel="icon" href="/assets/robot.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="/app.css" />
 </head>
 <body>
@@ -35,8 +38,8 @@
 
     <form id="loginForm">
       <div class="field">
-        <label class="field-label" for="accessCode">Access code</label>
-        <input type="password" id="accessCode" autocomplete="off" required />
+        <label class="field-label" for="accessCode">Terminal access key</label>
+        <input type="password" id="accessCode" class="key-input" autocomplete="off" placeholder="••••••" required />
       </div>
       <button type="submit" id="loginSubmit" class="btn block">Verify &amp; continue</button>
       <div id="loginError" class="error-text hidden"></div>
@@ -76,6 +79,23 @@
           <div class="field">
             <label class="field-label" for="role">Role</label>
             <input type="text" id="role" value="Personal Assistant" required />
+          </div>
+          <div class="field">
+            <label class="field-label">Response tone matrix</label>
+            <div id="tonePresets">
+              <div class="option-card selected" data-preset="professional">
+                <div class="opt-title">Professional concierge <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Polite, formal, executive-level communication.</div>
+              </div>
+              <div class="option-card" data-preset="casual">
+                <div class="opt-title">Friendly &amp; casual <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Conversational, warm tone with natural phrasing.</div>
+              </div>
+              <div class="option-card" data-preset="brief">
+                <div class="opt-title">Brief &amp; direct <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Concise bullet points, actionable data only.</div>
+              </div>
+            </div>
           </div>
           <div class="field">
             <label class="field-label" for="instructions">Prompt / instructions</label>
@@ -176,7 +196,7 @@
         <form id="wizVerifyForm">
           <div class="field">
             <label class="field-label" for="wizAccessCode">Access code</label>
-            <input type="password" id="wizAccessCode" autocomplete="off" required />
+            <input type="password" id="wizAccessCode" class="key-input" autocomplete="off" placeholder="••••••" required />
           </div>
           <button type="submit" id="wizVerifySubmit" class="btn block">Verify</button>
           <div id="wizVerifyError" class="error-text hidden"></div>
@@ -509,6 +529,23 @@
           <p class="sub">Use these commands directly in WhatsApp, from your own number.</p>
         </div>
         <div class="command-list" id="commandList"></div>
+
+        <div class="section-title" style="margin-top:var(--space-5);">Sandbox terminal</div>
+        <div class="terminal-card" style="max-width:620px;">
+          <div class="term-head">
+            <span class="eyebrow" style="color:var(--sidebar-muted);">Try a command here — it runs for real</span>
+            <span class="badge-outline" style="border-color:rgba(255,255,255,0.15); background:transparent; color:var(--sidebar-muted);">Local only</span>
+          </div>
+          <div class="terminal-log" id="terminalLog">
+            <div class="line">Ready. Type a command below and press Execute.</div>
+          </div>
+          <form class="terminal-prompt" id="terminalForm">
+            <span class="chevron">&gt;</span>
+            <input type="text" id="terminalInput" placeholder="/summary" autocomplete="off" />
+            <button type="submit" class="btn">Execute →</button>
+          </form>
+        </div>
+
         <div class="tip-card" style="margin-top:var(--space-4); max-width:520px;">
           <p>You can send these commands from your own WhatsApp number, in the chat with yourself.</p>
         </div>

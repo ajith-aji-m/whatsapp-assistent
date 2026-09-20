@@ -312,7 +312,7 @@ input[readonly] { opacity: 0.75; }
 }
 .wizard-card h2 { font-size: 1.25rem; margin-bottom: 4px; }
 .wizard-card .sub { color: var(--muted); font-size: 0.88rem; margin-bottom: var(--space-5); }
-.wizard-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); }
+.wizard-actions { display: flex; gap: var(--space-3); margin-top: var(--space-5); margin-bottom: var(--space-5); }
 .wizard-actions .btn { flex: 1; }
 .wizard-actions.split { justify-content: space-between; }
 .wizard-actions.split .btn { flex: none; }

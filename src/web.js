@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import qrcode from "qrcode";
-import { profile, setAvailability } from "./config.js";
+import { profile, setAvailability, renameAssistant, persistCurrentProfile } from "./config.js";
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
 import { commandsListText, commandsList } from "./commands.js";
@@ -316,6 +316,7 @@ export function startWebServer({ startBot, host, port }) {
         profile.scheduleProfile = scheduleProfile;
         profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
 
+        persistCurrentProfile();
         console.log("[WEB] Setup wizard completed (assistant profile + system prompt saved).");
 
         if (!connectionState.startedOnce) {
@@ -375,10 +376,10 @@ export function startWebServer({ startBot, host, port }) {
       }
 
       // Lets the owner rename the assistant from the dashboard, without
-      // going back through setup. Only the display name changes here — the
-      // system prompt already generated during setup is untouched (it may
-      // still reference the old name in its wording; re-running "Train
-      // Assistant" from setup is how that gets regenerated).
+      // going back through setup. renameAssistant() (config.js) is the
+      // single authoritative place this happens — it also patches the
+      // already-generated system prompt so the old name can't keep showing
+      // up in contact-facing replies, and persists the change to disk.
       if (req.method === "POST" && url.pathname === "/api/assistant-name") {
         const body = await readJsonBody(req);
         const assistantName = typeof body.assistantName === "string" ? body.assistantName.trim() : "";
@@ -386,9 +387,9 @@ export function startWebServer({ startBot, host, port }) {
           sendJson(res, 400, { ok: false, error: "Assistant name can't be empty." });
           return;
         }
-        profile.assistantName = assistantName;
+        renameAssistant(assistantName);
         console.log("[WEB] Assistant name updated via dashboard.");
-        sendJson(res, 200, { ok: true, assistantName });
+        sendJson(res, 200, { ok: true, assistantName: profile.assistantName });
         return;
       }
 
@@ -415,6 +416,7 @@ export function startWebServer({ startBot, host, port }) {
         const scheduleProfile = sanitizeScheduleProfile(body.scheduleProfile);
         profile.scheduleProfile = scheduleProfile;
         profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
+        persistCurrentProfile();
         console.log(`[WEB] Schedule-aware profile ${profile.scheduleEnabled ? "enabled" : "disabled"} via dashboard.`);
         sendJson(res, 200, { ok: true, scheduleEnabled: profile.scheduleEnabled, scheduleProfile: profile.scheduleProfile });
         return;

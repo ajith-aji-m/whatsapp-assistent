@@ -2,18 +2,31 @@ import { areJidsSameUser } from "@whiskeysockets/baileys";
 import { profile, setAvailability } from "./config.js";
 import { sendSummaryToAjith } from "./summary.js";
 
-// Single source of truth for the command list text — used by both the
-// "/list" WhatsApp command below and the web UI's "Show Commands" button.
-// A function (not a constant) so it always reflects the current owner's name
-// from config.js, whoever that is for this run.
+// Single source of truth for the owner-command list — used by both the
+// "/list" WhatsApp command and the web dashboard's Commands page. A function
+// (not a constant) so it always reflects current copy/naming.
+export function commandsList() {
+  return [
+    {
+      command: "/in",
+      description:
+        "Mark yourself as IN: the AI goes silent for contacts (you handle them yourself), and you get a summary of what came in while it was active.",
+    },
+    {
+      command: "/out",
+      description: "Mark yourself as OUT: the AI becomes active again for personal 1-to-1 contacts.",
+    },
+    { command: "/summary", description: "Generate a summary of pending conversations." },
+    { command: "/list", description: "Show this list of available commands." },
+  ];
+}
+
 export function commandsListText() {
   return (
     "Available commands:\n\n" +
-    `/in — Mark yourself as IN: the AI goes silent for contacts (you handle them yourself), and ` +
-    "you get a summary of what came in while it was active.\n" +
-    `/out — Mark yourself as OUT: the AI becomes active again for personal 1-to-1 contacts.\n` +
-    "/summary — Generate a summary of pending conversations.\n" +
-    "/list — Show this list of available commands."
+    commandsList()
+      .map((c) => `${c.command} — ${c.description}`)
+      .join("\n")
   );
 }
 

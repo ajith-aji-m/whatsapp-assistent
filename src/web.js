@@ -3,11 +3,20 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import qrcode from "qrcode";
-import { profile, setAvailability } from "./config.js";
+import { profile, setAvailability, renameAssistant, persistCurrentProfile, resetProfile } from "./config.js";
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
-import { commandsListText } from "./commands.js";
-import { generateSystemPrompt } from "./groq.js";
+import { commandsListText, commandsList } from "./commands.js";
+import { generateSystemPrompt, generateFieldSuggestion } from "./groq.js";
+
+// Strict allow-list for the /api/suggest endpoint below — matches suggest.js
+// / app.js's client-side field scoping exactly. Never expand this to owner
+// name, assistant name, workplace, location, or anything security-sensitive
+// (access code, passwords, etc.) — those either have no sensible fixed
+// vocabulary for an AI to complete, or must never be sent to a third-party
+// API at all.
+const SUGGEST_ELIGIBLE_FIELDS = new Set(["role", "profession"]);
+import { getScheduleSnapshot } from "./time.js";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -21,13 +30,35 @@ import {
 } from "./access.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SETUP_PAGE_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
+
+// Explicit allowlist of static assets the page references (no wildcard
+// filesystem traversal from the URL) — this app has always served exactly
+// one file; this only adds the handful the redesigned UI needs (separate
+// CSS/JS instead of one inline blob, plus a local icon). Read fresh from
+// disk on every request rather than cached at startup — this is a
+// low-traffic, single-owner control panel, so the disk read is free, and it
+// means an edit to index.html/app.css/app.js takes effect on next reload
+// without having to restart the whole process (which also re-runs the
+// Baileys connection).
+function readPublicFile(relPath) {
+  return fs.readFileSync(path.join(__dirname, "public", relPath));
+}
+const STATIC_ASSETS = {
+  "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
+  "/app.js": { file: "app.js", type: "application/javascript; charset=utf-8" },
+  "/suggest.js": { file: "suggest.js", type: "application/javascript; charset=utf-8" },
+  "/assets/robot.svg": { file: "assets/robot.svg", type: "image/svg+xml" },
+};
 
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
+    // Every JSON response here can reflect authenticated state (profile,
+    // status, etc.) — never let a browser/proxy cache and replay it after
+    // the session that produced it has been logged out.
+    "Cache-Control": "no-store",
   });
   res.end(body);
 }
@@ -89,6 +120,41 @@ function clientIp(req) {
   return req.socket.remoteAddress || "unknown";
 }
 
+const SCHEDULE_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const HHMM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
+function sanitizeScheduleTime(value) {
+  return typeof value === "string" && HHMM_RE.test(value.trim()) ? value.trim() : "";
+}
+
+// Turns the raw (untrusted) request body for the optional schedule/profile
+// section into a clean object — every field independently optional, invalid
+// or unrecognized values just dropped rather than rejected, matching this
+// app's generally low-friction validation style elsewhere. Returns null when
+// nothing usable was actually provided, which callers treat as "not
+// configured" (see config.js's profile.scheduleProfile default).
+function sanitizeScheduleProfile(body) {
+  const src = body && typeof body === "object" ? body : {};
+  const workingDays = Array.isArray(src.workingDays) ? src.workingDays.filter((d) => SCHEDULE_WEEKDAYS.includes(d)) : [];
+
+  const scheduleProfile = {
+    profession: typeof src.profession === "string" ? src.profession.trim() : "",
+    workplace: typeof src.workplace === "string" ? src.workplace.trim() : "",
+    location: typeof src.location === "string" ? src.location.trim() : "",
+    workingDays,
+    workingHoursStart: sanitizeScheduleTime(src.workingHoursStart),
+    workingHoursEnd: sanitizeScheduleTime(src.workingHoursEnd),
+    breakStart: sanitizeScheduleTime(src.breakStart),
+    breakEnd: sanitizeScheduleTime(src.breakEnd),
+    preferredStart: sanitizeScheduleTime(src.preferredStart),
+    preferredEnd: sanitizeScheduleTime(src.preferredEnd),
+    notes: typeof src.notes === "string" ? src.notes.trim() : "",
+  };
+
+  const hasAnyData = Object.values(scheduleProfile).some((v) => (Array.isArray(v) ? v.length > 0 : !!v));
+  return hasAnyData ? scheduleProfile : null;
+}
+
 // Builds the JSON snapshot sent both from GET /api/status and over the SSE
 // stream. Deliberately excludes GROQ_API_KEY/GROQ_MODEL, the access
 // code, and any WhatsApp auth/session data. Before the browser has verified
@@ -108,20 +174,24 @@ async function buildStatusPayload(authenticated) {
     configured,
     status: connectionState.status,
     qrDataUrl,
+    connectedAt: connectionState.connectedAt,
     profile: {
       name: profile.name,
       role: profile.role,
       assistantName: profile.assistantName,
       availability: profile.availability,
+      scheduleEnabled: profile.scheduleEnabled,
+      scheduleProfile: profile.scheduleProfile,
     },
-    ownerJid: profile.whatsappJid,
+    scheduleSnapshot:
+      profile.scheduleEnabled && profile.scheduleProfile ? getScheduleSnapshot(profile.scheduleProfile) : null,
   };
 }
 
 // Starts the local setup/control web UI. `startBot` is the existing Baileys
 // connection function from index.js — this module only decides WHEN to call
 // it (once the setup wizard is completed), never how it works.
-export function startWebServer({ startBot, host, port }) {
+export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
   const server = http.createServer(async (req, res) => {
     let url;
     try {
@@ -133,9 +203,23 @@ export function startWebServer({ startBot, host, port }) {
 
     try {
       // Single static page — no framework, no build step, no other files served.
+      // Cache-Control: no-store is deliberate: this same document renders
+      // both the login screen and the full dashboard shell depending on
+      // client-side JS's own auth check (see app.js) — without this, some
+      // browsers can restore a fully-rendered (already logged-in) DOM from
+      // back/forward-cache after logout without re-running that check at
+      // all. no-store makes the page ineligible for bfcache, so Back/Forward
+      // always re-fetches and re-verifies instead of showing stale content.
       if (req.method === "GET" && url.pathname === "/") {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(SETUP_PAGE_HTML);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+        res.end(readPublicFile("index.html"));
+        return;
+      }
+
+      if (req.method === "GET" && STATIC_ASSETS[url.pathname]) {
+        const asset = STATIC_ASSETS[url.pathname];
+        res.writeHead(200, { "Content-Type": asset.type, "Cache-Control": "no-cache" });
+        res.end(readPublicFile(asset.file));
         return;
       }
 
@@ -216,6 +300,30 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
+      // Layer 2 (optional) AI fallback for the dashboard's smart-suggestion
+      // inputs (see public/suggest.js) — reached only after the client's own
+      // local/fuzzy matching found nothing, already debounced there. Not
+      // gated by the access code, same as /api/generate-prompt: this never
+      // touches the owner's actual profile/session, only the raw partial
+      // text for an allow-listed field, so there's nothing sensitive it
+      // could expose even if called directly. Always replies 200 with
+      // suggestion: null on anything invalid/ineligible/failed — this must
+      // never surface an error to the input the owner is typing into.
+      if (req.method === "POST" && url.pathname === "/api/suggest") {
+        const body = await readJsonBody(req);
+        const field = typeof body.field === "string" ? body.field : "";
+        const value = typeof body.value === "string" ? body.value : "";
+
+        if (!SUGGEST_ELIGIBLE_FIELDS.has(field) || !value.trim() || value.length > 60) {
+          sendJson(res, 200, { ok: true, suggestion: null });
+          return;
+        }
+
+        const suggestion = await generateFieldSuggestion({ field, value });
+        sendJson(res, 200, { ok: true, suggestion });
+        return;
+      }
+
       // Step 2→3 of the setup wizard ("Next"): saves the owner/assistant
       // details and the (possibly edited) prompt, and starts the WhatsApp
       // connection so the QR is ready by the time the owner clears
@@ -243,6 +351,16 @@ export function startWebServer({ startBot, host, port }) {
         // intentionally NOT accepted here — they come only from .env, never
         // from the browser.
 
+        // OPTIONAL schedule-aware profile (see config.js/assistant.js) —
+        // entirely skippable. If the owner left this section alone,
+        // scheduleProfile sanitizes to null and scheduleEnabled ends up
+        // false, so contact-facing behavior is unchanged from before this
+        // feature existed.
+        const scheduleProfile = sanitizeScheduleProfile(body.scheduleProfile);
+        profile.scheduleProfile = scheduleProfile;
+        profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
+
+        persistCurrentProfile();
         console.log("[WEB] Setup wizard completed (assistant profile + system prompt saved).");
 
         if (!connectionState.startedOnce) {
@@ -281,31 +399,85 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
-      // Browser/web-session logout only — never touches the WhatsApp
-      // connection, auth_info_baileys/, or stored conversation data. The
-      // next login just needs the verification code again; the setup
-      // wizard's saved profile/prompt and the live WhatsApp session are
-      // untouched, so it continues right where it left off.
-      if (req.method === "POST" && url.pathname === "/api/logout") {
-        destroySession(getSessionToken(req));
-        clearSessionCookie(res);
-        console.log("[WEB] Browser session logged out (WhatsApp connection left untouched).");
-        sendJson(res, 200, { ok: true });
-        return;
-      }
-
       // Everything below this point is dashboard functionality — gated
-      // behind the verification code.
+      // behind the verification code. This now INCLUDES both logout
+      // options: unlike the old cookie-only logout, both actually
+      // disconnect the real WhatsApp session (and Option 2 wipes profile
+      // data), so an unauthenticated request must never be able to trigger
+      // either — otherwise anyone who could merely reach this server (no
+      // access code needed) could disconnect the owner's WhatsApp or wipe
+      // their profile.
       if (!isAuthenticated(req)) {
         sendJson(res, 401, { ok: false, error: "Not verified." });
         return;
       }
 
+      // OPTION 1 — "Logout": ends the web session AND properly logs the
+      // linked WhatsApp device out (explicit owner request — the dashboard
+      // session and the WhatsApp session are two different things, but this
+      // specific button intentionally ends both). Setup-wizard profile data
+      // (name, assistant name, role, schedule, etc.) and the Access Code
+      // are both left completely untouched — re-verifying afterward lands
+      // back in the existing dashboard, just needing a fresh QR scan.
+      if (req.method === "POST" && url.pathname === "/api/logout") {
+        destroySession(getSessionToken(req));
+        clearSessionCookie(res);
+
+        await logoutWhatsApp();
+        console.log("[WEB] Logged out: web session ended, WhatsApp device logged out, profile/settings kept.");
+
+        // Profile stays configured, so the owner skips the wizard entirely
+        // on next verify and lands straight on the dashboard's own
+        // "connecting" view — start the connection now (same pattern
+        // /api/confirm-setup uses) so a fresh QR is ready by then.
+        connectionState.startedOnce = true;
+        startBot().catch((err) => console.error("❌ Failed to restart WhatsApp connection after logout:", err.message));
+
+        // The session token is shared across every tab of the same browser
+        // (same cookie) — nudge every open /api/events (SSE) connection to
+        // recompute its own auth state right now, same mechanism
+        // setAvailability already uses for cross-tab updates. Each
+        // connection checks its OWN captured token against the now-updated
+        // revocation list (see access.js's isValidSession), so a second tab
+        // finds out its session was just invalidated and drops back to the
+        // login screen (app.js) instead of sitting on stale dashboard
+        // content until its next action happens to 401.
+        connectionEvents.emit("update");
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
+      // OPTION 2 — "Logout & Clear Data": everything Option 1 does, PLUS a
+      // full reset of the setup-wizard profile (name, assistant name, role,
+      // generated prompt, schedule, availability) back to fresh-install
+      // defaults. The Access Code (ASSISTANT_ACCESS_CODE, .env) is never
+      // touched by either option — it isn't part of the profile object at
+      // all (see access.js). Re-verifying afterward lands back in the setup
+      // wizard from step 1, exactly like a first-ever run.
+      if (req.method === "POST" && url.pathname === "/api/logout-clear-data") {
+        destroySession(getSessionToken(req));
+        clearSessionCookie(res);
+
+        await logoutWhatsApp();
+        resetProfile();
+        console.log("[WEB] Logged out and cleared data: web session ended, WhatsApp device logged out, profile reset.");
+
+        // No startBot() here, deliberately — profile is no longer
+        // "configured", so the next verify goes through the setup wizard
+        // from step 1 again, and ITS OWN /api/confirm-setup call starts the
+        // connection once that's actually reached (connectionState
+        // .startedOnce was reset to false by logoutWhatsApp(), so that
+        // existing gate fires again exactly like a genuine first run).
+        connectionEvents.emit("update");
+        sendJson(res, 200, { ok: true });
+        return;
+      }
+
       // Lets the owner rename the assistant from the dashboard, without
-      // going back through setup. Only the display name changes here — the
-      // system prompt already generated during setup is untouched (it may
-      // still reference the old name in its wording; re-running "Train
-      // Assistant" from setup is how that gets regenerated).
+      // going back through setup. renameAssistant() (config.js) is the
+      // single authoritative place this happens — it also patches the
+      // already-generated system prompt so the old name can't keep showing
+      // up in contact-facing replies, and persists the change to disk.
       if (req.method === "POST" && url.pathname === "/api/assistant-name") {
         const body = await readJsonBody(req);
         const assistantName = typeof body.assistantName === "string" ? body.assistantName.trim() : "";
@@ -313,9 +485,9 @@ export function startWebServer({ startBot, host, port }) {
           sendJson(res, 400, { ok: false, error: "Assistant name can't be empty." });
           return;
         }
-        profile.assistantName = assistantName;
+        renameAssistant(assistantName);
         console.log("[WEB] Assistant name updated via dashboard.");
-        sendJson(res, 200, { ok: true, assistantName });
+        sendJson(res, 200, { ok: true, assistantName: profile.assistantName });
         return;
       }
 
@@ -331,6 +503,23 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
+      // Lets the owner add/edit/enable/disable the OPTIONAL schedule-aware
+      // profile from the dashboard at any time, without redoing the whole
+      // setup wizard (mirrors /api/assistant-name above). Sending this with
+      // an empty/all-blank scheduleProfile and scheduleEnabled: false is how
+      // the owner turns the feature back off — existing contact-facing
+      // behavior reverts to unchanged the moment they do.
+      if (req.method === "POST" && url.pathname === "/api/schedule-profile") {
+        const body = await readJsonBody(req);
+        const scheduleProfile = sanitizeScheduleProfile(body.scheduleProfile);
+        profile.scheduleProfile = scheduleProfile;
+        profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
+        persistCurrentProfile();
+        console.log(`[WEB] Schedule-aware profile ${profile.scheduleEnabled ? "enabled" : "disabled"} via dashboard.`);
+        sendJson(res, 200, { ok: true, scheduleEnabled: profile.scheduleEnabled, scheduleProfile: profile.scheduleProfile });
+        return;
+      }
+
       if (req.method === "POST" && url.pathname === "/api/summary") {
         if (!connectionState.sock || !profile.whatsappJid) {
           sendJson(res, 409, { ok: false, error: "WhatsApp is not connected yet." });
@@ -343,7 +532,7 @@ export function startWebServer({ startBot, host, port }) {
       }
 
       if (req.method === "GET" && url.pathname === "/api/commands") {
-        sendJson(res, 200, { text: commandsListText() });
+        sendJson(res, 200, { text: commandsListText(), commands: commandsList() });
         return;
       }
 

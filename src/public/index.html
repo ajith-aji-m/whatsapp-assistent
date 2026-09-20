@@ -3,527 +3,624 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>WhatsApp AI Assistant — Setup</title>
-<style>
-  :root {
-    color-scheme: light dark;
-    --bg: #f5f6f8;
-    --card: #ffffff;
-    --text: #1a1d23;
-    --muted: #6b7280;
-    --border: #e3e5e9;
-    --accent: #16a34a;
-    --accent-off: #9ca3af;
-    --danger: #dc2626;
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #14161a;
-      --card: #1d2025;
-      --text: #eef0f3;
-      --muted: #9aa1ad;
-      --border: #30343b;
-    }
-  }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0;
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    display: flex;
-    justify-content: center;
-    padding: 32px 16px;
-  }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 28px;
-    width: 100%;
-    max-width: 460px;
-  }
-  h1 { font-size: 1.25rem; margin: 0 0 4px; }
-  .sub { color: var(--muted); font-size: 0.9rem; margin: 0 0 20px; }
-  label { display: block; font-size: 0.85rem; font-weight: 600; margin: 14px 0 6px; }
-  input[type="text"], input[type="password"], select, textarea {
-    width: 100%;
-    padding: 10px 12px;
-    border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 0.95rem;
-    font-family: inherit;
-  }
-  textarea { resize: vertical; min-height: 90px; line-height: 1.4; }
-  input[readonly], input:disabled { opacity: 0.7; cursor: not-allowed; }
-  textarea#promptText { min-height: 160px; }
-  .radio-row { display: flex; gap: 10px; margin-top: 4px; }
-  .radio-row label {
-    flex: 1;
-    margin: 0;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px;
-    text-align: center;
-    cursor: pointer;
-    font-weight: 500;
-    font-size: 0.9rem;
-  }
-  .radio-row input { display: none; }
-  .radio-row input:checked + span { color: var(--accent); font-weight: 700; }
-  button {
-    width: 100%;
-    margin-top: 20px;
-    padding: 12px;
-    border-radius: 8px;
-    border: none;
-    background: var(--accent);
-    color: white;
-    font-size: 1rem;
-    font-weight: 600;
-    cursor: pointer;
-  }
-  button.secondary { background: var(--accent-off); margin-top: 10px; }
-  button.link { background: none; color: var(--muted); font-weight: 500; text-decoration: underline; padding: 4px; margin-top: 10px; }
-  button:disabled { opacity: 0.6; cursor: not-allowed; }
-  .btn-row { display: flex; gap: 10px; }
-  .btn-row button { margin-top: 10px; }
-  .hint { color: var(--muted); font-size: 0.78rem; margin-top: 6px; }
-  .hidden { display: none !important; }
-  .center { text-align: center; }
-  #qrImg { width: 220px; height: 220px; border-radius: 8px; border: 1px solid var(--border); margin: 16px auto; display: block; }
-  .status-line { font-size: 0.95rem; margin: 12px 0; }
-  .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; }
-  .dot.green { background: var(--accent); }
-  .dot.gray { background: var(--accent-off); }
-  .dot.red { background: var(--danger); }
-  .avail-row { display: flex; gap: 10px; margin-top: 6px; }
-  .avail-row button { margin-top: 0; flex: 1; background: var(--accent-off); }
-  .avail-row button.active { background: var(--accent); }
-  pre {
-    white-space: pre-wrap;
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 0.85rem;
-    margin-top: 12px;
-  }
-  .err { color: var(--danger); font-size: 0.85rem; margin-top: 8px; }
-  .step-track { color: var(--muted); font-size: 0.75rem; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 6px; }
-</style>
+<title>WA Assistant — Dashboard</title>
+<link rel="icon" href="/assets/robot.svg" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="/app.css" />
 </head>
 <body>
-<div class="card">
 
-  <!-- STEP 1: OWNER / ASSISTANT DETAILS -->
-  <div id="screen-setup">
-    <div class="step-track">Step 1 of 4 — Assistant details</div>
-    <h1>Set Up Your Assistant</h1>
-    <p class="sub">Tell us who you are and how the assistant should behave, then connect WhatsApp.</p>
-
-    <form id="setupForm">
-      <label for="ownerName">Name</label>
-      <input type="text" id="ownerName" value="Ajith" required />
-
-      <label for="assistantName">Assistant Name</label>
-      <input type="text" id="assistantName" value="Personal Assistant" required />
-
-      <label for="role">Role</label>
-      <input type="text" id="role" value="Personal Assistant" required />
-
-      <label for="instructions">Prompt / Instructions</label>
-      <textarea id="instructions" required>Use a suitable personal-assistant system prompt by default.</textarea>
-
-      <label>Availability</label>
-      <div class="radio-row">
-        <label><input type="radio" name="availability" value="AVAILABLE" /><span>Available</span></label>
-        <label><input type="radio" name="availability" value="UNAVAILABLE" checked /><span>Unavailable</span></label>
-      </div>
-
-      <button type="submit" id="setupSubmit">Train Assistant</button>
-      <div class="err hidden" id="setupError"></div>
-    </form>
-  </div>
-
-  <!-- STEP 2: GENERATED PROMPT REVIEW -->
-  <div id="screen-prompt" class="hidden">
-    <div class="step-track">Step 2 of 4 — Review prompt</div>
-    <h1>Review Assistant Prompt</h1>
-    <p class="sub">This is what your assistant will follow. Edit it directly if you'd like, or regenerate it.</p>
-
-    <label for="promptText">Generated Prompt</label>
-    <textarea id="promptText"></textarea>
-
-    <div class="btn-row">
-      <button type="button" class="secondary" id="btnRegenerate">Regenerate Prompt</button>
-      <button type="button" class="secondary" id="btnEditToggle">Edit Prompt</button>
+<!-- ============ LOADING ============ -->
+<div id="view-loading" class="screen-center">
+  <div class="brand-mark">
+    <img src="/assets/robot.svg" alt="" />
+    <div>
+      <div class="name">WA Assistant</div>
+      <div class="tagline">Loading…</div>
     </div>
-    <button type="button" id="btnContinue">Next</button>
-    <div class="err hidden" id="promptError"></div>
   </div>
-
-  <!-- STEP 3: VERIFICATION CODE -->
-  <div id="screen-verify" class="hidden">
-    <div class="step-track">Step 3 of 4 — Verification</div>
-    <h1>Enter Verification Code</h1>
-    <p class="sub">Enter the access code to continue to WhatsApp pairing.</p>
-
-    <form id="verifyForm">
-      <label for="accessCode">Verification Code</label>
-      <input type="password" id="accessCode" autocomplete="off" required />
-
-      <button type="submit" id="verifySubmit">Verify</button>
-      <div class="err hidden" id="verifyError"></div>
-    </form>
-  </div>
-
-  <!-- STEP 4: QR / CONNECTING SCREEN -->
-  <div id="screen-qr" class="hidden center">
-    <div class="step-track">Step 4 of 4 — Connect WhatsApp</div>
-    <h1>Connect WhatsApp</h1>
-    <div id="qrStatusLine" class="status-line">Starting...</div>
-    <img id="qrImg" class="hidden" alt="WhatsApp QR code" />
-  </div>
-
-  <!-- DASHBOARD SCREEN -->
-  <div id="screen-dashboard" class="hidden">
-    <h1 id="dashName">Assistant</h1>
-    <p class="sub" id="dashRole"></p>
-
-    <div class="status-line"><span class="dot green"></span>WhatsApp: Connected</div>
-
-    <label for="dashAssistantName">Assistant Name</label>
-    <input type="text" id="dashAssistantName" />
-    <button type="button" class="secondary" id="btnSaveAssistantName">Save Assistant Name</button>
-    <div class="err hidden" id="assistantNameError"></div>
-
-    <label>Availability</label>
-    <div class="avail-row">
-      <button type="button" id="btnAvailable">Available</button>
-      <button type="button" id="btnUnavailable">Unavailable</button>
-    </div>
-
-    <button type="button" class="secondary" id="btnSummary">Get Summary</button>
-    <button type="button" class="secondary" id="btnCommands">Show Commands</button>
-    <button type="button" class="link" id="btnLogout">Logout</button>
-
-    <pre id="resultBox" class="hidden"></pre>
-  </div>
-
 </div>
 
-<script>
-  const el = (id) => document.getElementById(id);
-  const screens = {
-    setup: el("screen-setup"),
-    prompt: el("screen-prompt"),
-    verify: el("screen-verify"),
-    qr: el("screen-qr"),
-    dashboard: el("screen-dashboard"),
-  };
+<!-- ============ LOGIN (access code) ============ -->
+<div id="view-login" class="screen-center hidden">
+  <div class="auth-card">
+    <div class="brand-mark">
+      <img src="/assets/robot.svg" alt="" />
+      <div>
+        <div class="name">WA Assistant</div>
+        <div class="tagline">Your Personal WhatsApp Assistant</div>
+      </div>
+    </div>
+    <h1>Welcome back</h1>
+    <p class="sub">Enter your access code to continue.</p>
 
-  function showScreen(name) {
-    for (const key in screens) screens[key].classList.toggle("hidden", key !== name);
-  }
+    <form id="loginForm">
+      <div class="field">
+        <label class="field-label" for="accessCode">Terminal access key</label>
+        <input type="password" id="accessCode" class="key-input" autocomplete="off" placeholder="••••••" required />
+      </div>
+      <button type="submit" id="loginSubmit" class="btn block">Verify &amp; continue</button>
+      <div id="loginError" class="error-text hidden"></div>
+    </form>
 
-  // Carries the wizard's details across steps 1-2 (owner/assistant/role/
-  // instructions), so "Regenerate Prompt" and "Next" can resend them
-  // without asking the owner to retype anything.
-  let wizardDetails = null;
+    <div class="secure-note">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 2l7 3v6c0 5-3.4 8.5-7 11-3.6-2.5-7-6-7-11V5l7-3z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></svg>
+      <span>Secure access — your assistant dashboard stays behind this access code.</span>
+    </div>
+  </div>
+</div>
 
-  // Guards "Train Assistant" against repeated clicks while a Groq
-  // request is already in flight (on top of disabling the button itself).
-  let isTraining = false;
+<!-- ============ SETUP WIZARD ============ -->
+<div id="view-wizard" class="screen-center hidden">
+  <div class="wizard-shell">
+    <div class="stepper">
+      <div class="step" data-step="1"><div class="num">1</div><span class="label">Details</span></div>
+      <div class="step" data-step="2"><div class="num">2</div><span class="label">Schedule</span></div>
+      <div class="step" data-step="3"><div class="num">3</div><span class="label">Connect</span></div>
+      <div class="step" data-step="4"><div class="num">4</div><span class="label">Finish</span></div>
+    </div>
 
-  function renderAvailabilityButtons(availability) {
-    el("btnAvailable").classList.toggle("active", availability === "AVAILABLE");
-    el("btnUnavailable").classList.toggle("active", availability === "UNAVAILABLE");
-  }
+    <!-- Step 1: details + generated prompt review -->
+    <div class="wizard-card" id="wizStep1">
+      <div id="wizDetailsPane">
+        <h2>Set up your assistant</h2>
+        <p class="sub">Tell us who you are and how the assistant should behave.</p>
+        <form id="setupForm">
+          <div class="field">
+            <label class="field-label" for="ownerName">Your name</label>
+            <input type="text" id="ownerName" value="Ajith" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="assistantName">Assistant name</label>
+            <input type="text" id="assistantName" value="Personal Assistant" required />
+          </div>
+          <div class="field">
+            <label class="field-label" for="role">Role</label>
+            <input type="text" id="role" value="Personal Assistant" data-suggest="role" required />
+          </div>
+          <div class="field">
+            <label class="field-label">Response tone matrix</label>
+            <div id="tonePresets">
+              <div class="option-card selected" data-preset="professional">
+                <div class="opt-title">Professional concierge <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Polite, formal, executive-level communication.</div>
+              </div>
+              <div class="option-card" data-preset="casual">
+                <div class="opt-title">Friendly &amp; casual <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Conversational, warm tone with natural phrasing.</div>
+              </div>
+              <div class="option-card" data-preset="brief">
+                <div class="opt-title">Brief &amp; direct <span class="opt-active-tag">Active</span></div>
+                <div class="opt-desc">Concise bullet points, actionable data only.</div>
+              </div>
+            </div>
+          </div>
+          <div class="field">
+            <label class="field-label" for="instructions">Prompt / instructions</label>
+            <textarea id="instructions" required>Use a suitable personal-assistant system prompt by default.</textarea>
+          </div>
+          <button type="submit" id="setupSubmit" class="btn block">Continue</button>
+          <div id="setupError" class="error-text hidden"></div>
+        </form>
+      </div>
 
-  // Applies a status snapshot for an AUTHENTICATED browser only — decides
-  // between the QR screen and the dashboard. Never called with a snapshot
-  // from a browser that hasn't passed verification yet.
-  function applyStatus(data) {
-    if (data.profile) {
-      el("dashName").textContent = data.profile.assistantName || data.profile.name || "Assistant";
-      el("dashRole").textContent = data.profile.role || "";
-      renderAvailabilityButtons(data.profile.availability);
-      // Don't clobber the input while the owner is actively editing it.
-      if (document.activeElement !== el("dashAssistantName")) {
-        el("dashAssistantName").value = data.profile.assistantName || "";
-      }
-    }
+      <div id="wizPromptPane" class="hidden">
+        <h2>Review assistant prompt</h2>
+        <p class="sub">This is what your assistant will follow. Edit it directly, or regenerate it.</p>
+        <div class="field">
+          <label class="field-label" for="promptText">Generated prompt</label>
+          <textarea id="promptText" readonly></textarea>
+        </div>
+        <div class="wizard-actions">
+          <button type="button" class="btn secondary" id="btnRegenerate">Regenerate</button>
+          <button type="button" class="btn secondary" id="btnEditToggle">Edit prompt</button>
+        </div>
+        <button type="button" class="btn block" id="btnPromptContinue">Continue</button>
+        <div id="promptError" class="error-text hidden"></div>
+      </div>
+    </div>
 
-    if (data.status === "connected") {
-      showScreen("dashboard");
-    } else if (data.status === "qr") {
-      showScreen("qr");
-      el("qrStatusLine").textContent = "Waiting for WhatsApp scan...";
-      if (data.qrDataUrl) {
-        el("qrImg").src = data.qrDataUrl;
-        el("qrImg").classList.remove("hidden");
-      }
-    } else if (data.status === "connecting" || data.status === "reconnecting") {
-      showScreen("qr");
-      el("qrImg").classList.add("hidden");
-      el("qrStatusLine").textContent =
-        data.status === "reconnecting" ? "Reconnecting to WhatsApp..." : "Starting WhatsApp connection...";
-    } else if (data.status === "logged_out") {
-      // Transient: the server clears the stale session and restarts itself
-      // right away, which shortly follows with a fresh "qr" status update
-      // over this same SSE stream — no manual restart needed.
-      showScreen("qr");
-      el("qrImg").classList.add("hidden");
-      el("qrStatusLine").textContent = "Session expired — generating a new QR code...";
-    }
-  }
+    <!-- Step 2: optional schedule -->
+    <div class="wizard-card hidden" id="wizStep2">
+      <h2>Work schedule (optional)</h2>
+      <p class="sub">Help your assistant understand your working hours and availability. You can skip this entirely.</p>
 
-  // Live updates — no manual refresh needed for new QR codes or state
-  // changes. An SSE connection's request (and its cookies) are fixed for
-  // the lifetime of that connection — a stream opened before verification
-  // never becomes "authenticated" server-side even after this browser later
-  // verifies, since no new request is ever sent on it. So this is
-  // reconnected (see connectEvents calls below) right after verification
-  // succeeds, so the new stream is opened with the session cookie already
-  // present and live updates (like QR -> connected after scanning) actually
-  // arrive.
-  let events = null;
-  function connectEvents() {
-    if (events) events.close();
-    events = new EventSource("/api/events");
-    events.onmessage = (e) => {
-      const data = JSON.parse(e.data);
-      if (data.authenticated) applyStatus(data);
-    };
-  }
-  connectEvents();
+      <div class="toggle-row field">
+        <div>
+          <label class="field-label" for="setupScheduleEnabled" style="margin-bottom:2px;">Enable schedule-aware responses</label>
+          <div class="field-hint" style="margin-top:0;">Recommended — lets your assistant mention your hours naturally.</div>
+        </div>
+        <span class="switch">
+          <input type="checkbox" id="setupScheduleEnabled" />
+          <span class="track"></span><span class="knob"></span>
+        </span>
+      </div>
 
-  // Initial snapshot decides which of the four steps to start on: already
-  // authenticated -> straight to QR/dashboard (per live status); configured
-  // but not yet authenticated (e.g. after logout) -> verification screen,
-  // skipping setup entirely; otherwise -> the setup wizard from step 1.
-  fetch("/api/status")
-    .then((r) => r.json())
-    .then((data) => {
-      if (data.authenticated) {
-        applyStatus(data);
-      } else if (data.configured) {
-        showScreen("verify");
-      } else {
-        showScreen("setup");
-      }
-    });
+      <div id="setupScheduleFields" class="hidden">
+        <div class="field">
+          <label class="field-label" for="setupProfession">Profession / job</label>
+          <input type="text" id="setupProfession" placeholder="e.g. Software Developer" data-suggest="profession" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="setupWorkplace">Workplace</label>
+          <input type="text" id="setupWorkplace" placeholder="e.g. Acme Corp" />
+        </div>
+        <div class="field">
+          <label class="field-label" for="setupLocation">Work location / city</label>
+          <input type="text" id="setupLocation" placeholder="e.g. Thiruvananthapuram" />
+        </div>
+        <div class="field">
+          <label class="field-label">Working days</label>
+          <div class="days-grid">
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Monday" />Mon</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Tuesday" />Tue</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Wednesday" />Wed</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Thursday" />Thu</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Friday" />Fri</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Saturday" />Sat</label>
+            <label class="checkbox-pill"><input type="checkbox" class="setupWorkingDay" value="Sunday" />Sun</label>
+          </div>
+        </div>
+        <div class="field">
+          <label class="field-label">Working hours</label>
+          <div class="time-pair"><input type="time" id="setupWorkingHoursStart" /><span class="sep">to</span><input type="time" id="setupWorkingHoursEnd" /></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Break</label>
+          <div class="time-pair"><input type="time" id="setupBreakStart" /><span class="sep">to</span><input type="time" id="setupBreakEnd" /></div>
+        </div>
+        <div class="field">
+          <label class="field-label">Preferred communication hours</label>
+          <div class="time-pair"><input type="time" id="setupPreferredStart" /><span class="sep">to</span><input type="time" id="setupPreferredEnd" /></div>
+        </div>
+        <div class="field">
+          <label class="field-label" for="setupScheduleNotes">Additional information</label>
+          <textarea id="setupScheduleNotes" placeholder="Anything else worth mentioning"></textarea>
+        </div>
+      </div>
 
-  el("setupForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    if (isTraining) return; // ignore repeated clicks while a request is already in flight
-    isTraining = true;
+      <div class="wizard-actions split">
+        <button type="button" class="btn secondary" id="btnStep2Back">Back</button>
+        <button type="button" class="btn" id="btnStep2Continue">Continue</button>
+      </div>
+      <div id="scheduleWizardError" class="error-text hidden"></div>
+    </div>
 
-    el("setupError").classList.add("hidden");
-    el("setupSubmit").disabled = true;
-    el("setupSubmit").textContent = "Training your assistant... please wait";
+    <!-- Step 3: connect whatsapp (access code, then QR) -->
+    <div class="wizard-card hidden" id="wizStep3">
+      <div id="wizConnectAuthPane">
+        <h2>Verify to continue</h2>
+        <p class="sub">Enter your access code to reveal the WhatsApp pairing screen.</p>
+        <form id="wizVerifyForm">
+          <div class="field">
+            <label class="field-label" for="wizAccessCode">Access code</label>
+            <input type="password" id="wizAccessCode" class="key-input" autocomplete="off" placeholder="••••••" required />
+          </div>
+          <button type="submit" id="wizVerifySubmit" class="btn block">Verify</button>
+          <div id="wizVerifyError" class="error-text hidden"></div>
+        </form>
+      </div>
 
-    wizardDetails = {
-      ownerName: el("ownerName").value.trim(),
-      assistantName: el("assistantName").value.trim(),
-      role: el("role").value.trim(),
-      instructions: el("instructions").value.trim(),
-      availability: document.querySelector('input[name="availability"]:checked').value,
-    };
+      <div id="wizConnectQrPane" class="hidden qr-card">
+        <h2>Connect your WhatsApp</h2>
+        <p class="sub">Scan the QR code with your WhatsApp mobile app to connect.</p>
+        <div class="qr-frame">
+          <img id="wizQrImg" class="hidden" alt="WhatsApp QR code" />
+          <span id="wizQrPlaceholder" class="stat-sub">Preparing QR…</span>
+        </div>
+        <div id="wizConnectStatus" class="status-pill"><span class="dot amber"></span><span>Waiting for connection…</span></div>
+        <ul class="qr-steps">
+          <li><b>1</b> Open WhatsApp on your phone</li>
+          <li><b>2</b> Go to Linked Devices</li>
+          <li><b>3</b> Tap Link a Device</li>
+          <li><b>4</b> Scan this QR code</li>
+        </ul>
+        <button type="button" class="btn block" id="btnStep3Continue" style="margin-top:24px;" disabled>Continue</button>
+      </div>
+    </div>
 
-    try {
-      const res = await fetch("/api/generate-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wizardDetails),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Training failed");
+    <!-- Step 4: review & finish -->
+    <div class="wizard-card hidden" id="wizStep4">
+      <h2>Review &amp; finish</h2>
+      <p class="sub">Here's a summary of your setup. Go back to make changes if needed.</p>
+      <div class="summary-list" id="wizSummaryList"></div>
+      <div class="wizard-actions split">
+        <button type="button" class="btn secondary" id="btnStep4Back">Back</button>
+        <button type="button" class="btn" id="btnFinish">Save &amp; complete</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-      el("promptText").value = data.prompt;
-      el("promptText").setAttribute("readonly", "readonly");
-      el("btnEditToggle").textContent = "Edit Prompt";
-      showScreen("prompt");
-    } catch (err) {
-      el("setupError").textContent = err.message || "Could not train the assistant. Please try again.";
-      el("setupError").classList.remove("hidden");
-    } finally {
-      isTraining = false;
-      el("setupSubmit").disabled = false;
-      el("setupSubmit").textContent = "Train Assistant";
-    }
-  });
+<!-- ============ STANDALONE CONNECTING / QR (non-wizard, e.g. after logout+relogin) ============ -->
+<div id="view-connecting" class="screen-center hidden">
+  <div class="wizard-shell" style="max-width:420px;">
+    <div class="wizard-card qr-card">
+      <h2>Connect WhatsApp</h2>
+      <div class="qr-frame">
+        <img id="qrImg" class="hidden" alt="WhatsApp QR code" />
+        <span id="qrPlaceholder" class="stat-sub">Starting…</span>
+      </div>
+      <div id="connStatusPill" class="status-pill"><span class="dot amber"></span><span id="connStatusText">Starting…</span></div>
+    </div>
+  </div>
+</div>
 
-  el("btnEditToggle").addEventListener("click", () => {
-    const isReadonly = el("promptText").hasAttribute("readonly");
-    if (isReadonly) {
-      el("promptText").removeAttribute("readonly");
-      el("promptText").focus();
-      el("btnEditToggle").textContent = "Lock Prompt";
-    } else {
-      el("promptText").setAttribute("readonly", "readonly");
-      el("btnEditToggle").textContent = "Edit Prompt";
-    }
-  });
+<!-- ============ APP SHELL ============ -->
+<div id="view-shell" class="app-shell hidden">
 
-  el("btnRegenerate").addEventListener("click", async () => {
-    if (!wizardDetails) return;
-    el("promptError").classList.add("hidden");
-    el("btnRegenerate").disabled = true;
-    el("btnRegenerate").textContent = "Regenerating...";
+  <div class="mobile-header">
+    <div class="brand-mark">
+      <img src="/assets/robot.svg" alt="" width="26" height="26" />
+      <div class="name">WA Assistant</div>
+    </div>
+    <button id="btnOpenDrawer" aria-label="Open menu">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M4 6h16M4 12h16M4 18h16" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+    </button>
+  </div>
+  <div id="navBackdrop" class="nav-drawer-backdrop"></div>
 
-    try {
-      const res = await fetch("/api/generate-prompt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(wizardDetails),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Prompt generation failed");
-      el("promptText").value = data.prompt;
-    } catch (err) {
-      el("promptError").textContent = err.message || "Could not regenerate the prompt.";
-      el("promptError").classList.remove("hidden");
-    } finally {
-      el("btnRegenerate").disabled = false;
-      el("btnRegenerate").textContent = "Regenerate Prompt";
-    }
-  });
+  <aside class="sidebar" id="sidebar">
+    <div class="brand-mark">
+      <img src="/assets/robot.svg" alt="" />
+      <div>
+        <div class="name">WA Assistant</div>
+        <div class="tagline">Your Personal WhatsApp Assistant</div>
+      </div>
+    </div>
 
-  el("btnContinue").addEventListener("click", async () => {
-    if (!wizardDetails) return;
-    el("promptError").classList.add("hidden");
-    el("btnContinue").disabled = true;
+    <ul class="nav-list">
+      <li><button class="nav-item" data-page="dashboard">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3" y="3" width="8" height="8" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="3" width="8" height="5" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="13" y="11" width="8" height="10" rx="2" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="8" height="7" rx="2" stroke="currentColor" stroke-width="1.8"/></svg>
+        Dashboard
+      </button></li>
+      <li><button class="nav-item" data-page="profile">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Profile
+      </button></li>
+      <li><button class="nav-item" data-page="schedule">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17M8 3v3M16 3v3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Schedule
+      </button></li>
+      <li><button class="nav-item" data-page="whatsapp">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3.5a8.2 8.2 0 00-7.1 12.3L3.5 20.5l4.9-1.3A8.2 8.2 0 1012 3.5z" stroke="currentColor" stroke-width="1.8"/><path d="M9 9.7c0 3 2.4 5.4 5.4 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        WhatsApp
+      </button></li>
+      <li><button class="nav-item" data-page="commands">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 8l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M13 16h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+        Commands
+      </button></li>
+      <li><button class="nav-item" data-page="settings">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/><path d="M19 12a7 7 0 00-.1-1.2l2-1.5-2-3.4-2.3.9a7 7 0 00-2-1.2L14 3h-4l-.4 2.5a7 7 0 00-2 1.2l-2.3-.9-2 3.4 2 1.5a7 7 0 000 2.4l-2 1.5 2 3.4 2.3-.9a7 7 0 002 1.2L10 21h4l.4-2.5a7 7 0 002-1.2l2.3.9 2-3.4-2-1.5c.07-.4.1-.8.1-1.3z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+        Settings
+      </button></li>
+    </ul>
 
-    const systemPrompt = el("promptText").value.trim();
-    if (!systemPrompt) {
-      el("promptError").textContent = "Prompt can't be empty.";
-      el("promptError").classList.remove("hidden");
-      el("btnContinue").disabled = false;
-      return;
-    }
+    <div class="sidebar-footer">
+      <button class="nav-item" id="btnLogout">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><path d="M16 17l5-5-5-5M21 12H9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        Logout
+      </button>
+    </div>
+  </aside>
 
-    try {
-      const res = await fetch("/api/confirm-setup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...wizardDetails, systemPrompt }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Setup failed");
-      showScreen("verify");
-    } catch (err) {
-      el("promptError").textContent = err.message || "Could not save setup. Please try again.";
-      el("promptError").classList.remove("hidden");
-    } finally {
-      el("btnContinue").disabled = false;
-    }
-  });
+  <main class="main">
+    <div class="main-inner">
 
-  el("verifyForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    el("verifyError").classList.add("hidden");
-    el("verifySubmit").disabled = true;
+      <!-- ---------- DASHBOARD ---------- -->
+      <section id="page-dashboard" class="page">
+        <div class="topbar">
+          <div class="page-header">
+            <h1 id="dashGreeting">Good to see you <span class="wave">👋</span></h1>
+            <p class="sub">Here's your assistant's current status.</p>
+          </div>
+          <div class="user-chip">
+            <div class="user-avatar" id="userInitial">A</div>
+          </div>
+        </div>
 
-    try {
-      const res = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code: el("accessCode").value }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Invalid verification code.");
+        <div class="grid-2" style="margin-bottom:var(--space-4);">
+          <div class="card shadow accent-top">
+            <div class="card-row">
+              <div>
+                <h3>WhatsApp Connection</h3>
+                <div class="stat-line" id="waConnLine">—</div>
+              </div>
+              <div class="card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 3.5a8.2 8.2 0 00-7.1 12.3L3.5 20.5l4.9-1.3A8.2 8.2 0 1012 3.5z" stroke="currentColor" stroke-width="1.8"/></svg>
+              </div>
+            </div>
+            <div class="stat-sub" id="waLastConnected">—</div>
+          </div>
 
-      el("accessCode").value = "";
-      showScreen("qr");
-      el("qrStatusLine").textContent = "Starting WhatsApp connection...";
+          <div class="card shadow accent-top">
+            <div class="card-row">
+              <div>
+                <h3>Assistant status</h3>
+                <div class="stat-line" id="availStateLine">—</div>
+              </div>
+              <div class="card-icon">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M4 12l5 5L20 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </div>
+            </div>
+            <div class="stat-sub" id="availSubLine">Auto-replies: —</div>
+            <div class="avail-toggle">
+              <button class="btn secondary" id="btnSetIn">Set IN</button>
+              <button class="btn secondary" id="btnSetOut">Set OUT</button>
+            </div>
+          </div>
+        </div>
 
-      // Reconnect the live-updates stream now that the session cookie
-      // exists, so it actually delivers this browser's future pushes (see
-      // connectEvents' definition above for why the old one never would) —
-      // in particular the QR -> connected transition once the code is scanned.
-      connectEvents();
+        <div class="section-title">Quick actions</div>
+        <div class="grid-3" style="margin-bottom:var(--space-4);">
+          <button class="quick-action" data-goto="profile">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.4" stroke="currentColor" stroke-width="1.8"/><path d="M5 20c1.2-3.6 4-5.4 7-5.4s5.8 1.8 7 5.4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <span class="label">Edit profile</span>
+          </button>
+          <button class="quick-action" data-goto="schedule">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><rect x="3.5" y="4.5" width="17" height="16" rx="2.5" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 9.5h17" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <span class="label">Schedule</span>
+          </button>
+          <button class="quick-action" id="qaSummary">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 4h9l3 3v13H6z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9 11h6M9 15h6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></div>
+            <span class="label">View summary</span>
+          </button>
+          <button class="quick-action" data-goto="commands">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M6 8l4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+            <span class="label">Commands</span>
+          </button>
+          <button class="quick-action" data-goto="whatsapp">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M12 3.5a8.2 8.2 0 00-7.1 12.3L3.5 20.5l4.9-1.3A8.2 8.2 0 1012 3.5z" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <span class="label">WhatsApp</span>
+          </button>
+          <button class="quick-action" data-goto="settings">
+            <div class="card-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/></svg></div>
+            <span class="label">Settings</span>
+          </button>
+        </div>
 
-      // Pick up current state right away instead of waiting for the next SSE tick.
-      const statusRes = await fetch("/api/status");
-      const statusData = await statusRes.json();
-      if (statusData.authenticated) applyStatus(statusData);
-    } catch (err) {
-      el("verifyError").textContent = err.message || "Invalid verification code.";
-      el("verifyError").classList.remove("hidden");
-    } finally {
-      el("verifySubmit").disabled = false;
-    }
-  });
+        <div id="summaryResult" class="card hidden" style="margin-bottom:var(--space-4);">
+          <div class="card-row" style="margin-bottom:var(--space-2);">
+            <h3>Conversation summary</h3>
+            <button class="btn ghost sm" id="btnCloseSummary">Close</button>
+          </div>
+          <p class="stat-sub" id="summaryText" style="white-space:pre-wrap;">Generating summary…</p>
+        </div>
 
-  async function setAvailability(value) {
-    renderAvailabilityButtons(value); // optimistic
-    await fetch("/api/availability", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ availability: value }),
-    });
-  }
-  el("btnAvailable").addEventListener("click", () => setAvailability("AVAILABLE"));
-  el("btnUnavailable").addEventListener("click", () => setAvailability("UNAVAILABLE"));
+        <div class="grid-2">
+          <div class="card">
+            <h3 style="margin-bottom:var(--space-3);">Today's overview</h3>
+            <div id="overviewEnabled" class="overview-list hidden">
+              <div class="overview-item"><span class="k">Working day</span><span class="v" id="ovWorkingDay">—</span></div>
+              <div class="overview-item"><span class="k">Working hours</span><span class="v" id="ovWorkingHours">—</span></div>
+              <div class="overview-item"><span class="k">Current status</span><span class="v" id="ovCurrentStatus">—</span></div>
+              <div class="overview-item"><span class="k">Next change</span><span class="v" id="ovNextChange">—</span></div>
+            </div>
+            <div id="overviewDisabled" class="empty-note">Schedule awareness is disabled. Enable it from the Schedule page.</div>
+          </div>
 
-  el("btnSaveAssistantName").addEventListener("click", async () => {
-    el("assistantNameError").classList.add("hidden");
-    const assistantName = el("dashAssistantName").value.trim();
-    if (!assistantName) {
-      el("assistantNameError").textContent = "Assistant name can't be empty.";
-      el("assistantNameError").classList.remove("hidden");
-      return;
-    }
+          <div class="tip-card">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M7 15h6M8 11h5M12 3a6 6 0 00-3.6 10.8c.4.3.6.8.6 1.3V16h6v-.9c0-.5.2-1 .6-1.3A6 6 0 0012 3z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M10 19h4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <p>Let your assistant handle the routine, so you can focus on what matters.</p>
+          </div>
+        </div>
+      </section>
 
-    el("btnSaveAssistantName").disabled = true;
-    try {
-      const res = await fetch("/api/assistant-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ assistantName }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.ok) throw new Error(data.error || "Could not save the assistant name.");
-      el("dashName").textContent = data.assistantName;
-    } catch (err) {
-      el("assistantNameError").textContent = err.message || "Could not save the assistant name.";
-      el("assistantNameError").classList.remove("hidden");
-    } finally {
-      el("btnSaveAssistantName").disabled = false;
-    }
-  });
+      <!-- ---------- PROFILE ---------- -->
+      <section id="page-profile" class="page hidden">
+        <div class="page-header">
+          <h1>Profile</h1>
+          <p class="sub">Your details and how your assistant introduces itself.</p>
+        </div>
+        <div class="card" style="max-width:520px;">
+          <div class="field">
+            <label class="field-label">Owner name</label>
+            <input type="text" id="profOwnerName" disabled />
+            <div class="field-hint">Set during initial setup.</div>
+          </div>
+          <div class="field">
+            <label class="field-label">Role</label>
+            <input type="text" id="profRole" disabled />
+          </div>
+          <div class="field">
+            <label class="field-label" for="dashAssistantName">Assistant name</label>
+            <input type="text" id="dashAssistantName" />
+          </div>
+          <button type="button" class="btn" id="btnSaveAssistantName">Save changes</button>
+          <div id="assistantNameError" class="error-text hidden"></div>
+        </div>
+      </section>
 
-  el("btnSummary").addEventListener("click", async () => {
-    el("resultBox").classList.remove("hidden");
-    el("resultBox").textContent = "Generating summary...";
-    try {
-      const res = await fetch("/api/summary", { method: "POST" });
-      const data = await res.json();
-      el("resultBox").textContent = data.ok ? data.summary : "Error: " + data.error;
-    } catch {
-      el("resultBox").textContent = "Error generating summary.";
-    }
-  });
+      <!-- ---------- SCHEDULE ---------- -->
+      <section id="page-schedule" class="page hidden">
+        <div class="page-header">
+          <h1>Personal &amp; professional profile</h1>
+          <p class="sub">Give your assistant optional information about your work and availability so it can answer contacts more naturally.</p>
+        </div>
 
-  el("btnCommands").addEventListener("click", async () => {
-    el("resultBox").classList.remove("hidden");
-    const res = await fetch("/api/commands");
-    const data = await res.json();
-    el("resultBox").textContent = data.text;
-  });
+        <div class="card" style="max-width:620px;">
+          <div class="toggle-row field">
+            <div>
+              <label class="field-label" style="margin-bottom:2px;">Enable schedule-aware responses</label>
+              <div class="field-hint" style="margin-top:0;">Optional — skip this entirely if you'd rather not share it.</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" id="dashScheduleEnabled" />
+              <span class="track"></span><span class="knob"></span>
+            </span>
+          </div>
 
-  // Browser/web-session logout only — the WhatsApp connection and all saved
-  // data stay untouched server-side (see web.js). Reloading re-runs the
-  // initial /api/status check above, which sends this now-unauthenticated
-  // browser straight to the verification screen (setup is already done).
-  el("btnLogout").addEventListener("click", async () => {
-    await fetch("/api/logout", { method: "POST" });
-    location.reload();
-  });
-</script>
+          <div id="dashScheduleFields" class="hidden">
+            <div class="divider"></div>
+            <div class="field">
+              <label class="field-label" for="dashProfession">Profession / job</label>
+              <input type="text" id="dashProfession" placeholder="e.g. Software Developer" data-suggest="profession" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="dashWorkplace">Workplace</label>
+              <input type="text" id="dashWorkplace" placeholder="e.g. Acme Corp" />
+            </div>
+            <div class="field">
+              <label class="field-label" for="dashLocation">Work location / city</label>
+              <input type="text" id="dashLocation" placeholder="e.g. Thiruvananthapuram" />
+            </div>
+            <div class="field">
+              <label class="field-label">Working days</label>
+              <div class="days-grid">
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Monday" />Mon</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Tuesday" />Tue</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Wednesday" />Wed</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Thursday" />Thu</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Friday" />Fri</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Saturday" />Sat</label>
+                <label class="checkbox-pill"><input type="checkbox" class="dashWorkingDay" value="Sunday" />Sun</label>
+              </div>
+            </div>
+            <div class="field">
+              <label class="field-label">Working hours</label>
+              <div class="time-pair"><input type="time" id="dashWorkingHoursStart" /><span class="sep">to</span><input type="time" id="dashWorkingHoursEnd" /></div>
+            </div>
+            <div class="field">
+              <label class="field-label">Break</label>
+              <div class="time-pair"><input type="time" id="dashBreakStart" /><span class="sep">to</span><input type="time" id="dashBreakEnd" /></div>
+            </div>
+            <div class="field">
+              <label class="field-label">Preferred communication hours</label>
+              <div class="time-pair"><input type="time" id="dashPreferredStart" /><span class="sep">to</span><input type="time" id="dashPreferredEnd" /></div>
+            </div>
+            <div class="field">
+              <label class="field-label" for="dashScheduleNotes">Additional information</label>
+              <textarea id="dashScheduleNotes" placeholder="Anything else worth mentioning"></textarea>
+            </div>
+          </div>
+
+          <button type="button" class="btn" id="btnSaveSchedule">Save changes</button>
+          <div id="scheduleError" class="error-text hidden"></div>
+        </div>
+      </section>
+
+      <!-- ---------- WHATSAPP ---------- -->
+      <section id="page-whatsapp" class="page hidden">
+        <div class="page-header">
+          <h1>WhatsApp</h1>
+          <p class="sub">Connection status for your linked WhatsApp account.</p>
+        </div>
+        <div class="card shadow" style="max-width:480px;">
+          <div id="waPageConnected">
+            <div class="status-pill"><span class="dot green"></span><span>Connected</span></div>
+            <div class="stat-sub" style="margin-top:var(--space-3);" id="waPageLastConnected">—</div>
+          </div>
+          <div id="waPageNotConnected" class="hidden">
+            <div class="status-pill"><span class="dot amber"></span><span id="waPageStatusText">Connecting…</span></div>
+            <div class="qr-frame" style="margin-left:0;">
+              <img id="waPageQrImg" class="hidden" alt="WhatsApp QR code" />
+              <span id="waPageQrPlaceholder" class="stat-sub">Preparing QR…</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- COMMANDS ---------- -->
+      <section id="page-commands" class="page hidden">
+        <div class="page-header">
+          <h1>Assistant commands</h1>
+          <p class="sub">Use these commands directly in WhatsApp, from your own number.</p>
+        </div>
+        <div class="command-list" id="commandList"></div>
+
+        <div class="section-title" style="margin-top:var(--space-5);">Sandbox terminal</div>
+        <div class="terminal-card" style="max-width:620px;">
+          <div class="term-head">
+            <span class="eyebrow" style="color:var(--sidebar-muted);">Try a command here — it runs for real</span>
+            <span class="badge-outline" style="border-color:rgba(255,255,255,0.15); background:transparent; color:var(--sidebar-muted);">Local only</span>
+          </div>
+          <div class="terminal-log" id="terminalLog">
+            <div class="line">Ready. Type a command below and press Execute.</div>
+          </div>
+          <form class="terminal-prompt" id="terminalForm">
+            <span class="chevron">&gt;</span>
+            <input type="text" id="terminalInput" placeholder="/summary" autocomplete="off" />
+            <button type="submit" class="btn">Execute →</button>
+          </form>
+        </div>
+
+        <div class="tip-card" style="margin-top:var(--space-4); max-width:520px;">
+          <p>You can send these commands from your own WhatsApp number, in the chat with yourself.</p>
+        </div>
+      </section>
+
+      <!-- ---------- SETTINGS ---------- -->
+      <section id="page-settings" class="page hidden">
+        <div class="page-header">
+          <h1>Settings</h1>
+          <p class="sub">Session and account controls.</p>
+        </div>
+        <div class="card" style="max-width:480px;">
+          <div class="overview-item"><span class="k">Signed in as</span><span class="v" id="settingsOwnerName">—</span></div>
+          <div class="overview-item"><span class="k">Assistant name</span><span class="v" id="settingsAssistantName">—</span></div>
+          <div class="divider"></div>
+          <div class="toggle-row field">
+            <div>
+              <label class="field-label" style="margin-bottom:2px;">Smart input suggestions</label>
+              <div class="field-hint" style="margin-top:0;">Autocomplete for Role/Profession fields — local matching, with an optional AI fallback for anything unrecognized.</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" id="smartSuggestionsToggle" checked />
+              <span class="track"></span><span class="knob"></span>
+            </span>
+          </div>
+          <div class="divider"></div>
+          <p class="field-hint" style="margin-bottom:var(--space-4);">The access code is managed on the server and can't be changed from here.</p>
+          <button type="button" class="btn danger-outline block" id="btnLogoutSettings">Log out</button>
+        </div>
+      </section>
+
+    </div>
+  </main>
+</div>
+
+<!-- ============ LOGOUT: choose Logout vs Logout & Clear Data ============ -->
+<div id="logoutModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>Log out</h2>
+    <p class="sub">Choose how you'd like to log out.</p>
+
+    <button type="button" class="option-card" id="optLogout">
+      <div class="opt-title">Logout</div>
+      <div class="opt-desc">Sign out and disconnect WhatsApp. Keep my profile and settings.</div>
+    </button>
+
+    <button type="button" class="option-card danger" id="optLogoutClear">
+      <div class="opt-title">Logout &amp; Clear Data</div>
+      <div class="opt-desc">Sign out, disconnect WhatsApp, and permanently clear my profile/settings so I can start fresh.</div>
+    </button>
+
+    <div id="logoutModalError" class="error-text hidden"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary block" id="btnLogoutModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LOGOUT & CLEAR DATA: extra destructive-action confirm ============ -->
+<div id="logoutClearConfirmModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>Clear all data?</h2>
+    <p class="sub">This permanently deletes your profile, assistant name, schedule, and preferences, and disconnects WhatsApp. Your Access Code is not affected. This cannot be undone.</p>
+
+    <div id="logoutClearConfirmError" class="error-text hidden"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" id="btnCancelClearData">Cancel</button>
+      <button type="button" class="btn danger-outline" id="btnConfirmClearData">Yes, clear everything</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast hidden"></div>
+
+<script src="/suggest.js"></script>
+<script src="/app.js"></script>
 </body>
 </html>

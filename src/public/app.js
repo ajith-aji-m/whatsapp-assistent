@@ -78,6 +78,64 @@
     el(`${prefix}ScheduleNotes`).value = p.notes || "";
   }
 
+  // Smart input suggestions (see suggest.js) — Layer 1 local/fuzzy matching
+  // only, no AI fallback wired up yet. Scoped deliberately: only fields with
+  // a genuine, well-defined completion vocabulary get a dictionary
+  // (assistant persona roles vs. the owner's own profession are different
+  // vocabularies, so they get separate lists) — never attached to
+  // access-code/password fields, and not attached to open-ended fields
+  // (owner name, workplace, city, notes) where a fixed dictionary wouldn't
+  // make sense.
+  if (window.attachSuggest) {
+    const ROLE_SUGGESTIONS = [
+      "Personal Assistant", "Executive Assistant", "Virtual Assistant", "Clinic Assistant",
+      "Customer Support Assistant", "Sales Assistant", "Office Assistant", "Scheduling Assistant",
+      "Front Desk Assistant", "Administrative Assistant", "Medical Assistant", "Legal Assistant",
+    ];
+    const PROFESSION_SUGGESTIONS = [
+      "Developer", "Software Developer", "Web Developer", "Mobile Developer",
+      "Designer", "UI/UX Designer", "Graphic Designer",
+      "Engineer", "Software Engineer", "Mechanical Engineer", "Civil Engineer", "Electrical Engineer",
+      "Manager", "Product Manager", "Project Manager", "Marketing Manager", "Sales Manager",
+      "Student", "Doctor", "Nurse", "Teacher", "Lawyer", "Accountant", "Consultant",
+      "Entrepreneur", "Freelancer", "Architect", "Data Scientist", "Analyst",
+      "Sales Executive", "Photographer", "Writer", "Researcher",
+    ];
+    // Layer 2 (optional) AI fallback — only reached client-side (see
+    // suggest.js) when local matching above found nothing, after the
+    // existing debounce, for fields >= 3 chars. Sends ONLY the raw partial
+    // text and a fixed field key — never the owner's name, profile, or any
+    // other app state — to a field-scoped backend endpoint (see web.js's
+    // /api/suggest), which itself only accepts "role"/"profession".
+    function makeAiFallback(field) {
+      return async (value) => {
+        const res = await fetch("/api/suggest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ field, value }),
+        });
+        const data = await res.json();
+        return data.ok ? data.suggestion : null;
+      };
+    }
+
+    qsa('[data-suggest="role"]').forEach((input) =>
+      window.attachSuggest(input, { dictionary: ROLE_SUGGESTIONS, aiFallback: makeAiFallback("role") })
+    );
+    qsa('[data-suggest="profession"]').forEach((input) =>
+      window.attachSuggest(input, { dictionary: PROFESSION_SUGGESTIONS, aiFallback: makeAiFallback("profession") })
+    );
+  }
+
+  // Settings page: Smart Suggestions master on/off toggle (see suggest.js —
+  // disabling this turns off BOTH local matching and the AI fallback).
+  if (window.smartSuggestions && el("smartSuggestionsToggle")) {
+    el("smartSuggestionsToggle").checked = window.smartSuggestions.isEnabled();
+    el("smartSuggestionsToggle").addEventListener("change", (e) => {
+      window.smartSuggestions.setEnabled(e.target.checked);
+    });
+  }
+
   // Response tone presets (Step 1) — quick-fill for the instructions field.
   const TONE_PRESETS = {
     professional: "Use a warm, professional, executive-level tone. Be precise, polite, and clear in every response.",

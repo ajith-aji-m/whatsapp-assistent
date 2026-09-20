@@ -646,6 +646,30 @@ input[readonly] { opacity: 0.75; }
 .terminal-prompt input:focus-visible { outline: none; }
 .terminal-prompt .btn { padding: 8px 14px; font-family: var(--font); }
 
+/* Smart input suggestions (see suggest.js) */
+.suggest-wrap { position: relative; }
+.suggest-wrap input { padding-right: 118px; }
+.suggest-chip {
+  position: absolute;
+  top: 50%; right: 6px; transform: translateY(-50%);
+  max-width: 108px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 5px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.suggest-chip:hover { background: var(--accent); color: var(--accent-contrast); }
+.suggest-chip::before { content: "↹ "; }
+/* AI-fallback (Layer 2) suggestions use the same chip — only the prefix
+   differs, as the subtle "this came from AI" cue. */
+.suggest-chip.ai-suggestion::before { content: "✦ "; }
+
 /* ============================================================
    Responsive
    ============================================================ */

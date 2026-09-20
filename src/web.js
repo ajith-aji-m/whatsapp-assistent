@@ -7,7 +7,15 @@ import { profile, setAvailability, renameAssistant, persistCurrentProfile } from
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
 import { commandsListText, commandsList } from "./commands.js";
-import { generateSystemPrompt } from "./groq.js";
+import { generateSystemPrompt, generateFieldSuggestion } from "./groq.js";
+
+// Strict allow-list for the /api/suggest endpoint below — matches suggest.js
+// / app.js's client-side field scoping exactly. Never expand this to owner
+// name, assistant name, workplace, location, or anything security-sensitive
+// (access code, passwords, etc.) — those either have no sensible fixed
+// vocabulary for an AI to complete, or must never be sent to a third-party
+// API at all.
+const SUGGEST_ELIGIBLE_FIELDS = new Set(["role", "profession"]);
 import { getScheduleSnapshot } from "./time.js";
 import {
   SESSION_COOKIE_NAME,
@@ -38,6 +46,7 @@ function readPublicFile(relPath) {
 const STATIC_ASSETS = {
   "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "application/javascript; charset=utf-8" },
+  "/suggest.js": { file: "suggest.js", type: "application/javascript; charset=utf-8" },
   "/assets/robot.svg": { file: "assets/robot.svg", type: "image/svg+xml" },
 };
 
@@ -277,6 +286,30 @@ export function startWebServer({ startBot, host, port }) {
           console.error("❌ Prompt generation failed:", err.message);
           sendJson(res, 502, { ok: false, error: "Could not generate a prompt right now. Please try again." });
         }
+        return;
+      }
+
+      // Layer 2 (optional) AI fallback for the dashboard's smart-suggestion
+      // inputs (see public/suggest.js) — reached only after the client's own
+      // local/fuzzy matching found nothing, already debounced there. Not
+      // gated by the access code, same as /api/generate-prompt: this never
+      // touches the owner's actual profile/session, only the raw partial
+      // text for an allow-listed field, so there's nothing sensitive it
+      // could expose even if called directly. Always replies 200 with
+      // suggestion: null on anything invalid/ineligible/failed — this must
+      // never surface an error to the input the owner is typing into.
+      if (req.method === "POST" && url.pathname === "/api/suggest") {
+        const body = await readJsonBody(req);
+        const field = typeof body.field === "string" ? body.field : "";
+        const value = typeof body.value === "string" ? body.value : "";
+
+        if (!SUGGEST_ELIGIBLE_FIELDS.has(field) || !value.trim() || value.length > 60) {
+          sendJson(res, 200, { ok: true, suggestion: null });
+          return;
+        }
+
+        const suggestion = await generateFieldSuggestion({ field, value });
+        sendJson(res, 200, { ok: true, suggestion });
         return;
       }
 

@@ -233,4 +233,61 @@ export async function generateSystemPrompt({ ownerName, assistantName, role, ins
   return reply.trim();
 }
 
+// ---- Layer 2 (optional) AI fallback for the dashboard's smart-suggestion
+// inputs (see public/suggest.js). Client-side local/fuzzy matching is always
+// tried first — this is only ever reached when that finds nothing, already
+// debounced there. Deliberately takes just `field` (a fixed lookup key, NOT
+// interpolated into the prompt — never pass user-controlled text as the
+// field) and the raw partial text itself — never the owner's actual
+// profile/session, so there's nothing sensitive to leak even if this were
+// called directly. Kept to a strict allow-list of fields by design; callers
+// (web.js) must never add a field here whose vocabulary isn't this narrow
+// and safe (see the module list below — professions/roles only, never
+// names, workplaces, locations, or anything security-sensitive).
+
+const SUGGEST_TIMEOUT_MS = 6_000;
+const SUGGEST_MAX_INPUT_LEN = 60;
+const SUGGEST_MAX_OUTPUT_LEN = 60;
+
+const SUGGEST_SYSTEM_PROMPTS = {
+  role:
+    "You help complete a short WhatsApp assistant persona/role title (e.g. 'Personal Assistant', 'Executive " +
+    "Assistant', 'Customer Support Assistant') from a partial or misspelled input. Reply with ONLY the single " +
+    "best completed title (2-5 words) — no explanation, no quotes, no markdown, no trailing punctuation. If " +
+    "nothing sensible fits, reply with exactly: NONE",
+  profession:
+    "You help complete a short professional job title (e.g. 'Software Developer', 'Product Manager', 'Civil " +
+    "Engineer') from a partial or misspelled input. Reply with ONLY the single best completed job title (2-5 " +
+    "words) — no explanation, no quotes, no markdown, no trailing punctuation. If nothing sensible fits, reply " +
+    "with exactly: NONE",
+};
+
+// Returns a short completion string, or null when there's no confident
+// suggestion (including on any Groq failure — this NEVER throws, unlike the
+// rest of this file, because a broken suggestion must never break the form
+// the owner is filling in; see web.js's /api/suggest, which relies on this).
+export async function generateFieldSuggestion({ field, value }) {
+  const systemPrompt = SUGGEST_SYSTEM_PROMPTS[field];
+  const trimmed = (value || "").trim().slice(0, SUGGEST_MAX_INPUT_LEN);
+  if (!systemPrompt || trimmed.length < 2) return null;
+
+  try {
+    const reply = await callGroqChat(
+      [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: `Partial input: "${trimmed}"` },
+      ],
+      { timeoutMs: SUGGEST_TIMEOUT_MS }
+    );
+
+    const cleaned = reply.replace(/^["']|["']$/g, "").trim();
+    if (!cleaned || /^none$/i.test(cleaned)) return null;
+    if (cleaned.length > SUGGEST_MAX_OUTPUT_LEN || cleaned.includes("\n")) return null;
+    return cleaned;
+  } catch (err) {
+    console.error("⚠️ AI suggestion fallback failed (non-fatal):", err.message);
+    return null;
+  }
+}
+
 export { groqConfigured };

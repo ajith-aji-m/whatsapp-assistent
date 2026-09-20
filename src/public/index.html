@@ -78,7 +78,7 @@
           </div>
           <div class="field">
             <label class="field-label" for="role">Role</label>
-            <input type="text" id="role" value="Personal Assistant" required />
+            <input type="text" id="role" value="Personal Assistant" data-suggest="role" required />
           </div>
           <div class="field">
             <label class="field-label">Response tone matrix</label>
@@ -141,7 +141,7 @@
       <div id="setupScheduleFields" class="hidden">
         <div class="field">
           <label class="field-label" for="setupProfession">Profession / job</label>
-          <input type="text" id="setupProfession" placeholder="e.g. Software Developer" />
+          <input type="text" id="setupProfession" placeholder="e.g. Software Developer" data-suggest="profession" />
         </div>
         <div class="field">
           <label class="field-label" for="setupWorkplace">Workplace</label>
@@ -456,7 +456,7 @@
             <div class="divider"></div>
             <div class="field">
               <label class="field-label" for="dashProfession">Profession / job</label>
-              <input type="text" id="dashProfession" placeholder="e.g. Software Developer" />
+              <input type="text" id="dashProfession" placeholder="e.g. Software Developer" data-suggest="profession" />
             </div>
             <div class="field">
               <label class="field-label" for="dashWorkplace">Workplace</label>
@@ -561,6 +561,17 @@
           <div class="overview-item"><span class="k">Signed in as</span><span class="v" id="settingsOwnerName">—</span></div>
           <div class="overview-item"><span class="k">Assistant name</span><span class="v" id="settingsAssistantName">—</span></div>
           <div class="divider"></div>
+          <div class="toggle-row field">
+            <div>
+              <label class="field-label" style="margin-bottom:2px;">Smart input suggestions</label>
+              <div class="field-hint" style="margin-top:0;">Autocomplete for Role/Profession fields — local matching, with an optional AI fallback for anything unrecognized.</div>
+            </div>
+            <span class="switch">
+              <input type="checkbox" id="smartSuggestionsToggle" checked />
+              <span class="track"></span><span class="knob"></span>
+            </span>
+          </div>
+          <div class="divider"></div>
           <p class="field-hint" style="margin-bottom:var(--space-4);">The access code is managed on the server and can't be changed from here.</p>
           <button type="button" class="btn danger-outline block" id="btnLogoutSettings">Log out</button>
         </div>
@@ -572,6 +583,7 @@
 
 <div id="toast" class="toast hidden"></div>
 
+<script src="/suggest.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -224,6 +224,14 @@ input[readonly] { opacity: 0.75; }
   border-radius: var(--radius-sm);
   padding: 8px 10px;
 }
+.success-text {
+  color: var(--success-strong);
+  font-size: 0.85rem;
+  margin-top: var(--space-2);
+  background: var(--success-soft);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+}
 
 /* ============================================================
    Full-screen views: loading / login / wizard / connecting
@@ -334,6 +342,12 @@ input[readonly] { opacity: 0.75; }
   font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 0.04em;
   background: var(--surface-2); color: var(--muted); border: 1px solid var(--border);
 }
+/* Solid "state badge" variant — filled pill for the one or two statuses
+   that most need to read at a glance (e.g. WhatsApp connected/disconnected),
+   vs. the outline .status-pill default used everywhere else. */
+.status-pill.solid.success { background: var(--success); border-color: var(--success); color: #fff; }
+.status-pill.solid.danger { background: var(--danger); border-color: var(--danger); color: #fff; }
+.status-pill.solid .dot { background: currentColor; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .dot.green { background: var(--success); }
 .dot.gray { background: #a89a86; }
@@ -543,7 +557,10 @@ input[readonly] { opacity: 0.75; }
   position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
   background: var(--ink); color: var(--surface); padding: 10px 18px; border-radius: var(--radius-sm);
   font-size: 0.85rem; box-shadow: var(--shadow-pop); z-index: 50;
+  border-left: 4px solid transparent;
 }
+.toast.success { border-left-color: var(--success); }
+.toast.error { border-left-color: var(--danger); }
 
 .empty-note { color: var(--muted); font-size: 0.88rem; background: var(--surface-2); border-radius: var(--radius-md); padding: var(--space-4); }
 

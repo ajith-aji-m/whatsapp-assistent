@@ -20,7 +20,7 @@ import { resolveTodayOrTomorrowAt, formatLocalDateTime } from "./time.js";
 // only from Ajith's own self-chat (see index.js: handleOwnerMessage is only
 // ever called after the existing group guard AND the existing isAjith()
 // owner check have both already passed, exactly like the pre-existing
-// /available, /unavailable, /summary, /list owner commands in commands.js).
+// /in, /out, /summary, /list owner commands in commands.js).
 // It never runs for a group message or for a message from anyone else.
 //
 // NOTE ON /summary: the pre-existing "/summary" command (commands.js) is
@@ -212,7 +212,7 @@ function formatHelp() {
     "📊 Summary\n/mysummary\n\n" +
     "⚙️ Status\n/status\n\n" +
     "🗂️ Contacts (existing, unchanged)\n" +
-    "/available, /unavailable — your availability to contacts\n" +
+    "/in, /out — your availability to contacts\n" +
     "/summary — pending CONTACT conversations (not your own tasks)\n" +
     "/list — the contact-related commands above\n\n" +
     'Example natural request: "remind me tomorrow at 10 to check deployment"'

@@ -157,8 +157,8 @@ async function startBot() {
       if (remoteJid && remoteJid.endsWith("@g.us")) continue;
       if (!remoteJid || remoteJid === "status@broadcast") continue;
 
-      // Owner commands ("/available", "/unavailable", "/summary"): Ajith
-      // sends these to himself via his own "Message Yourself" WhatsApp chat.
+      // Owner commands ("/in", "/out", "/summary"): Ajith sends these to
+      // himself via his own "Message Yourself" WhatsApp chat.
       // Because this bot IS a linked device on Ajith's own account, that
       // message arrives here with fromMe: true too — the same flag used on
       // the bot's own outgoing replies. So this checks BOTH fromMe AND that
@@ -171,8 +171,8 @@ async function startBot() {
       if (recognizedAsOwnerCommand) {
         try {
           const handled = await handleOwnerCommand(sock, remoteJid, text);
-          // Not one of the pre-existing /available, /unavailable, /summary,
-          // /list commands — hand it to the owner's own productivity
+          // Not one of the pre-existing /in, /out, /summary, /list
+          // commands — hand it to the owner's own productivity
           // assistant (tasks/reminders/notes/links/search/chat, see
           // ownerAssistant.js). Still exactly the same isAjith()-gated,
           // group-excluded self-chat this block already only runs for.

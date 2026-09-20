@@ -9,9 +9,9 @@ import { sendSummaryToAjith } from "./summary.js";
 export function commandsListText() {
   return (
     "Available commands:\n\n" +
-    `/available — Mark yourself as available: the AI goes silent for contacts (you handle them yourself), and ` +
+    `/in — Mark yourself as IN: the AI goes silent for contacts (you handle them yourself), and ` +
     "you get a summary of what came in while it was active.\n" +
-    `/unavailable — Mark yourself as unavailable: the AI becomes active again for personal 1-to-1 contacts.\n` +
+    `/out — Mark yourself as OUT: the AI becomes active again for personal 1-to-1 contacts.\n` +
     "/summary — Generate a summary of pending conversations.\n" +
     "/list — Show this list of available commands."
   );
@@ -35,37 +35,42 @@ export function isAjith(jid) {
   return false;
 }
 
-// Handles "/available", "/unavailable", "/summary" sent from Ajith's own
-// WhatsApp chat (his "Message Yourself" conversation, which may show up as
-// either his phone-number JID or his LID — see isAjith above). Returns true
-// if the message was a recognized owner command — the caller should not run
-// the normal AI chat handler on it either way, since it came from Ajith's
-// own account. Always replies on the SAME remoteJid the command arrived on
-// (not a separately cached address), so the reply lands in the exact chat
-// thread Ajith is actually looking at.
+// Handles "/in", "/out", "/summary" sent from Ajith's own WhatsApp chat (his
+// "Message Yourself" conversation, which may show up as either his
+// phone-number JID or his LID — see isAjith above). Returns true if the
+// message was a recognized owner command — the caller should not run the
+// normal AI chat handler on it either way, since it came from Ajith's own
+// account. Always replies on the SAME remoteJid the command arrived on (not
+// a separately cached address), so the reply lands in the exact chat thread
+// Ajith is actually looking at.
+//
+// "/in"/"/out" are just the user-facing command names — they map onto the
+// existing internal AVAILABLE/UNAVAILABLE state (config.js/state.js)
+// unchanged: /in = AVAILABLE (owner handling contacts personally, AI
+// silent), /out = UNAVAILABLE (AI active for contacts).
 export async function handleOwnerCommand(sock, remoteJid, text) {
   if (!isAjith(remoteJid)) return false;
 
   const command = text.trim().toLowerCase();
 
-  if (command === "/available") {
-    console.log("[COMMAND] /available recognized as owner command");
+  if (command === "/in") {
+    console.log("[COMMAND] /in recognized as owner command");
     setAvailability("AVAILABLE");
     console.log("[STATE] Availability changed: AVAILABLE (AI now silent for contacts)");
     await sock.sendMessage(remoteJid, {
-      text: "You are now marked as AVAILABLE. I will stay silent for other contacts.",
+      text: "You are now marked as IN. I will stay silent for other contacts.",
     });
     console.log("[SUMMARY] Generating summary...");
     await sendSummaryToAjith(sock, remoteJid);
     return true;
   }
 
-  if (command === "/unavailable") {
-    console.log("[COMMAND] /unavailable recognized as owner command");
+  if (command === "/out") {
+    console.log("[COMMAND] /out recognized as owner command");
     setAvailability("UNAVAILABLE");
     console.log("[STATE] Availability changed: UNAVAILABLE (AI now active for contacts)");
     await sock.sendMessage(remoteJid, {
-      text: "You are now marked as UNAVAILABLE. I will handle personal 1-to-1 messages.",
+      text: "You are now marked as OUT. I will handle personal 1-to-1 messages.",
     });
     return true;
   }

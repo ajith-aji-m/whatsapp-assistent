@@ -110,6 +110,27 @@ export function renameAssistant(newName) {
   persistCurrentProfile();
 }
 
+// Full reset back to "fresh install" defaults for every setup-wizard field
+// (name, assistant name, role, generated prompt, schedule) PLUS availability
+// — used only by web.js's "Logout & Clear Data" option. Deliberately never
+// touches the Access Code (ASSISTANT_ACCESS_CODE lives in .env/access.js,
+// not in this profile object at all — see access.js's verifyAccessCode) and
+// never touches whatsappJid/whatsappLid (that's index.js's logoutWhatsApp()
+// job, alongside actually disconnecting WhatsApp). persistCurrentProfile()
+// then overwrites data/profile.json with these defaults, so a restart
+// doesn't resurrect the cleared data.
+export function resetProfile() {
+  profile.name = process.env.AJITH_NAME || "Ajith";
+  profile.role = process.env.AJITH_ROLE || "Personal Assistant";
+  profile.assistantName = process.env.ASSISTANT_NAME || "Assistant";
+  profile.instructions = null;
+  profile.systemPrompt = null;
+  profile.scheduleEnabled = false;
+  profile.scheduleProfile = null;
+  persistCurrentProfile();
+  setAvailability((process.env.AJITH_AVAILABILITY || "UNAVAILABLE").toUpperCase());
+}
+
 export function getAvailability() {
   return profile.availability;
 }

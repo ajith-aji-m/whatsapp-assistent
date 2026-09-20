@@ -581,6 +581,43 @@
   </main>
 </div>
 
+<!-- ============ LOGOUT: choose Logout vs Logout & Clear Data ============ -->
+<div id="logoutModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>Log out</h2>
+    <p class="sub">Choose how you'd like to log out.</p>
+
+    <button type="button" class="option-card" id="optLogout">
+      <div class="opt-title">Logout</div>
+      <div class="opt-desc">Sign out and disconnect WhatsApp. Keep my profile and settings.</div>
+    </button>
+
+    <button type="button" class="option-card danger" id="optLogoutClear">
+      <div class="opt-title">Logout &amp; Clear Data</div>
+      <div class="opt-desc">Sign out, disconnect WhatsApp, and permanently clear my profile/settings so I can start fresh.</div>
+    </button>
+
+    <div id="logoutModalError" class="error-text hidden"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary block" id="btnLogoutModalCancel">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ LOGOUT & CLEAR DATA: extra destructive-action confirm ============ -->
+<div id="logoutClearConfirmModal" class="modal-overlay hidden">
+  <div class="modal-card">
+    <h2>Clear all data?</h2>
+    <p class="sub">This permanently deletes your profile, assistant name, schedule, and preferences, and disconnects WhatsApp. Your Access Code is not affected. This cannot be undone.</p>
+
+    <div id="logoutClearConfirmError" class="error-text hidden"></div>
+    <div class="modal-actions">
+      <button type="button" class="btn secondary" id="btnCancelClearData">Cancel</button>
+      <button type="button" class="btn danger-outline" id="btnConfirmClearData">Yes, clear everything</button>
+    </div>
+  </div>
+</div>
+
 <div id="toast" class="toast hidden"></div>
 
 <script src="/suggest.js"></script>

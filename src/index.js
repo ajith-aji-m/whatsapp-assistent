@@ -13,12 +13,27 @@ import { hasConversation, recordMessage } from "./store.js";
 import { handleOwnerCommand, isAjith } from "./commands.js";
 import { generateAssistantReply } from "./assistant.js";
 import { handleOwnerMessage } from "./ownerAssistant.js";
-import { setStatus } from "./connectionState.js";
+import { setStatus, connectionState } from "./connectionState.js";
 import { markSelfSent, isSelfSent } from "./selfEcho.js";
 
 // Back to "silent" now that the connection itself is confirmed working —
 // keeps the terminal readable while we test message handling.
 const logger = pino({ level: "silent" });
+
+// Set right before logoutWhatsApp() (below) intentionally closes the socket
+// itself — the "connection.update" close handler further down always calls
+// startBot() again to auto-heal from a DROPPED connection, which is correct
+// for an organic disconnect (network blip, the owner unlinking the device
+// from their own phone, etc.) but wrong for an explicit web-dashboard
+// logout: there, the caller (web.js) — not this generic reconnect logic —
+// decides what happens next (Option 1 restarts immediately for a fresh QR;
+// Option 2 waits for the setup wizard to run again). Consumed exactly once
+// per logoutWhatsApp() call.
+let suppressNextAutoReconnect = false;
+
+// The current socket's saveCreds callback (see startBot below) — kept here
+// so logoutWhatsApp() can unregister it before deleting auth_info_baileys/.
+let currentSaveCreds = null;
 
 if (!process.env.GROQ_API_KEY) {
   console.error(
@@ -52,6 +67,13 @@ async function startBot() {
     version,
   });
 
+  // Made available immediately (not just once "connected" — see the
+  // connection.update handler below, which only ever put it in
+  // connectionState on that one transition) so logoutWhatsApp() can find and
+  // properly log out the CURRENT socket even while still mid-QR-scan or
+  // reconnecting, not only once fully linked.
+  connectionState.sock = sock;
+
   // Wrap sendMessage so EVERY message this bot ever sends — from here, from
   // commands.js, summary.js, ownerAssistant.js, reminderScheduler.js, all of
   // which call sock.sendMessage on this same object — gets its WhatsApp
@@ -75,6 +97,12 @@ async function startBot() {
 
   // Save updated credentials whenever they change
   sock.ev.on("creds.update", saveCreds);
+  // Exposed so logoutWhatsApp() (below) can unregister this BEFORE deleting
+  // auth_info_baileys/ — sock.logout() doesn't fully await its own internal
+  // teardown before resolving, so without this a creds.update event could
+  // still land in that narrow window and have Baileys silently re-write
+  // files into the directory right after we've deleted it.
+  currentSaveCreds = saveCreds;
 
   // Handle connection state changes (QR code, open, close)
   sock.ev.on("connection.update", async (update) => {
@@ -112,6 +140,18 @@ async function startBot() {
     }
 
     if (connection === "close") {
+      // An explicit web-dashboard logout (see logoutWhatsApp below) closes
+      // this same socket itself — that MUST NOT fall through to the
+      // organic-disconnect handling below (which would call startBot()
+      // again immediately, racing with whatever the caller in web.js is
+      // about to do — e.g. Option 2 deliberately waits for the setup
+      // wizard to run again before reconnecting).
+      if (suppressNextAutoReconnect) {
+        suppressNextAutoReconnect = false;
+        console.log("Connection closed as part of an explicit logout — not auto-reconnecting from here.");
+        return;
+      }
+
       const statusCode = new Boom(lastDisconnect?.error)?.output?.statusCode;
       const loggedOut = statusCode === DisconnectReason.loggedOut;
 
@@ -218,6 +258,66 @@ async function startBot() {
       }
     }
   });
+}
+
+// Properly logs the linked device out of WhatsApp — sends the actual
+// "remove-companion-device" logout request (via Baileys' sock.logout()) so
+// the device disappears from the phone's own "Linked Devices" list, not
+// just a local disconnect, then clears the local auth_info_baileys/ session
+// so this app can't silently reconnect as that device again. Used by
+// web.js's two dashboard logout options — NEVER called just because a
+// browser tab/session closed (see access.js/web.js: web-session logout and
+// WhatsApp logout are deliberately separate concepts).
+//
+// Deterministic regardless of what state the connection is currently in
+// (connected, mid-QR, reconnecting, or nothing at all): suppresses the
+// existing auto-reconnect-on-close logic above (so it can't race with or
+// duplicate what this function itself does), does the actual logout +
+// local cleanup itself, and leaves the DECISION of whether/when to
+// reconnect entirely to the caller (see web.js) — this function never calls
+// startBot() itself.
+export async function logoutWhatsApp() {
+  suppressNextAutoReconnect = true;
+  const sock = connectionState.sock;
+
+  if (sock) {
+    try {
+      await sock.logout();
+    } catch (err) {
+      console.error("⚠️ WhatsApp logout() request failed (clearing local session anyway):", err.message);
+    }
+    try {
+      sock.end(undefined);
+    } catch {
+      // Already closed by logout() itself (or was never fully open) — fine.
+    }
+  } else {
+    suppressNextAutoReconnect = false; // no close event will fire to consume it
+  }
+
+  // sock.logout() doesn't fully await its own internal teardown before
+  // resolving — unregister the creds-saving listener explicitly so a
+  // trailing creds.update event can't silently re-write files into
+  // auth_info_baileys/ in the instant right after we delete it below.
+  if (sock && currentSaveCreds) {
+    try {
+      sock.ev.off("creds.update", currentSaveCreds);
+    } catch {
+      // Emitter may already be torn down by logout()'s own end() — fine.
+    }
+  }
+  currentSaveCreds = null;
+
+  try {
+    await fs.rm("auth_info_baileys", { recursive: true, force: true });
+  } catch (err) {
+    console.error("❌ Failed to clear auth_info_baileys/ during logout:", err.message);
+  }
+
+  profile.whatsappJid = null;
+  profile.whatsappLid = null;
+  setStatus("idle", { qr: null, sock: null, connectedAt: null });
+  connectionState.startedOnce = false;
 }
 
 // Started by server.js once the web setup form is submitted (instead of

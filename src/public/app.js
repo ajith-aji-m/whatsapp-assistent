@@ -738,14 +738,93 @@
     }
   });
 
-  // Logout — browser session only; WhatsApp connection stays untouched
-  // server-side (see web.js).
-  async function logout() {
-    await fetch("/api/logout", { method: "POST" });
-    location.reload();
+  // Logout — two distinct server-enforced actions (see web.js):
+  //   /api/logout             — ends the web session AND logs the WhatsApp
+  //                             linked device out, but keeps profile/setup
+  //                             data (name, assistant name, schedule, etc.)
+  //                             and the Access Code untouched.
+  //   /api/logout-clear-data  — everything above, PLUS a full reset of the
+  //                             setup-wizard profile back to fresh-install
+  //                             defaults (Access Code still untouched).
+  // Both are server-side enforced (session revocation, WhatsApp logout,
+  // profile reset) — this code only triggers the request and reflects the
+  // result; it never performs the actual logout itself. On success it
+  // deliberately doesn't reset the "disabled" UI state below — the page is
+  // reloading anyway, so flipping controls back right before navigating
+  // away would just flash them for an instant.
+  let loggingOut = false;
+
+  async function submitLogout(endpoint, errorEl) {
+    if (loggingOut) return false;
+    loggingOut = true;
+    errorEl.classList.add("hidden");
+    try {
+      const res = await fetch(endpoint, { method: "POST" });
+      if (!res.ok) throw new Error("Logout request failed");
+      location.reload();
+      return true;
+    } catch {
+      // Network/server hiccup — the session may still be valid server-side,
+      // so it's safer to say so and let the owner retry than to pretend
+      // logout succeeded (or show a raw technical error).
+      loggingOut = false;
+      errorEl.textContent = "Couldn't log out — check your connection and try again.";
+      errorEl.classList.remove("hidden");
+      return false;
+    }
   }
-  el("btnLogout").addEventListener("click", logout);
-  el("btnLogoutSettings").addEventListener("click", logout);
+
+  function openLogoutModal() {
+    el("logoutModalError").classList.add("hidden");
+    el("logoutModal").classList.remove("hidden");
+  }
+  function closeLogoutModal() {
+    el("logoutModal").classList.add("hidden");
+  }
+  function closeClearConfirmModal() {
+    el("logoutClearConfirmModal").classList.add("hidden");
+  }
+
+  el("btnLogout").addEventListener("click", openLogoutModal);
+  el("btnLogoutSettings").addEventListener("click", openLogoutModal);
+  el("btnLogoutModalCancel").addEventListener("click", closeLogoutModal);
+
+  // "Logout" — keeps profile/settings, disconnects WhatsApp.
+  el("optLogout").addEventListener("click", async () => {
+    const titleEl = el("optLogout").querySelector(".opt-title");
+    const originalTitle = titleEl.textContent;
+    [el("optLogout"), el("optLogoutClear"), el("btnLogoutModalCancel")].forEach((b) => (b.disabled = true));
+    titleEl.textContent = "Logging out…";
+
+    const ok = await submitLogout("/api/logout", el("logoutModalError"));
+    if (!ok) {
+      [el("optLogout"), el("optLogoutClear"), el("btnLogoutModalCancel")].forEach((b) => (b.disabled = false));
+      titleEl.textContent = originalTitle;
+    }
+  });
+
+  // "Logout & Clear Data" — destructive, so it opens a second explicit
+  // confirmation instead of firing immediately (see UI requirement: this
+  // must be clearly distinguishable and require an extra confirmation).
+  el("optLogoutClear").addEventListener("click", () => {
+    closeLogoutModal();
+    el("logoutClearConfirmError").classList.add("hidden");
+    el("logoutClearConfirmModal").classList.remove("hidden");
+  });
+  el("btnCancelClearData").addEventListener("click", closeClearConfirmModal);
+  el("btnConfirmClearData").addEventListener("click", async () => {
+    const originalLabel = el("btnConfirmClearData").textContent;
+    el("btnConfirmClearData").disabled = true;
+    el("btnCancelClearData").disabled = true;
+    el("btnConfirmClearData").textContent = "Clearing…";
+
+    const ok = await submitLogout("/api/logout-clear-data", el("logoutClearConfirmError"));
+    if (!ok) {
+      el("btnConfirmClearData").disabled = false;
+      el("btnCancelClearData").disabled = false;
+      el("btnConfirmClearData").textContent = originalLabel;
+    }
+  });
 
   // Mobile nav drawer
   function openDrawer() {
@@ -794,10 +873,31 @@
     events = new EventSource("/api/events");
     events.onmessage = (e) => {
       const data = JSON.parse(e.data);
-      if (data.authenticated) routeAuthenticatedStatus(data);
+      if (data.authenticated) {
+        routeAuthenticatedStatus(data);
+      } else if (data.configured && appPhase !== "login" && appPhase !== "loading") {
+        // The session was invalidated elsewhere (e.g. Logout clicked in
+        // another tab — see web.js's /api/logout, which emits this same
+        // "update" event). The API-level 401 guard already blocks every
+        // protected call regardless of this; this just makes THIS tab drop
+        // back to the login screen too, instead of leaving stale dashboard
+        // content on screen until the next action happens to fail.
+        appPhase = "login";
+        showView("login");
+      }
     };
   }
   connectEvents();
+
+  // A browser can restore a fully-rendered previous page from back/forward
+  // cache without re-running any of the script above (see web.js's `/`
+  // handler for the matching Cache-Control: no-store, which should already
+  // prevent this in most browsers) — this is the client-side half of that
+  // same protection: force a real reload so auth state is always
+  // re-verified from scratch on Back/Forward, never shown from memory.
+  window.addEventListener("pageshow", (e) => {
+    if (e.persisted) location.reload();
+  });
 
   fetch("/api/status")
     .then((r) => r.json())

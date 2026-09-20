@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import qrcode from "qrcode";
-import { profile, setAvailability, renameAssistant, persistCurrentProfile } from "./config.js";
+import { profile, setAvailability, renameAssistant, persistCurrentProfile, resetProfile } from "./config.js";
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
 import { commandsListText, commandsList } from "./commands.js";
@@ -55,6 +55,10 @@ function sendJson(res, status, data) {
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
     "Content-Length": Buffer.byteLength(body),
+    // Every JSON response here can reflect authenticated state (profile,
+    // status, etc.) — never let a browser/proxy cache and replay it after
+    // the session that produced it has been logged out.
+    "Cache-Control": "no-store",
   });
   res.end(body);
 }
@@ -187,7 +191,7 @@ async function buildStatusPayload(authenticated) {
 // Starts the local setup/control web UI. `startBot` is the existing Baileys
 // connection function from index.js — this module only decides WHEN to call
 // it (once the setup wizard is completed), never how it works.
-export function startWebServer({ startBot, host, port }) {
+export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
   const server = http.createServer(async (req, res) => {
     let url;
     try {
@@ -199,8 +203,15 @@ export function startWebServer({ startBot, host, port }) {
 
     try {
       // Single static page — no framework, no build step, no other files served.
+      // Cache-Control: no-store is deliberate: this same document renders
+      // both the login screen and the full dashboard shell depending on
+      // client-side JS's own auth check (see app.js) — without this, some
+      // browsers can restore a fully-rendered (already logged-in) DOM from
+      // back/forward-cache after logout without re-running that check at
+      // all. no-store makes the page ineligible for bfcache, so Back/Forward
+      // always re-fetches and re-verifies instead of showing stale content.
       if (req.method === "GET" && url.pathname === "/") {
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
         res.end(readPublicFile("index.html"));
         return;
       }
@@ -388,23 +399,77 @@ export function startWebServer({ startBot, host, port }) {
         return;
       }
 
-      // Browser/web-session logout only — never touches the WhatsApp
-      // connection, auth_info_baileys/, or stored conversation data. The
-      // next login just needs the verification code again; the setup
-      // wizard's saved profile/prompt and the live WhatsApp session are
-      // untouched, so it continues right where it left off.
+      // Everything below this point is dashboard functionality — gated
+      // behind the verification code. This now INCLUDES both logout
+      // options: unlike the old cookie-only logout, both actually
+      // disconnect the real WhatsApp session (and Option 2 wipes profile
+      // data), so an unauthenticated request must never be able to trigger
+      // either — otherwise anyone who could merely reach this server (no
+      // access code needed) could disconnect the owner's WhatsApp or wipe
+      // their profile.
+      if (!isAuthenticated(req)) {
+        sendJson(res, 401, { ok: false, error: "Not verified." });
+        return;
+      }
+
+      // OPTION 1 — "Logout": ends the web session AND properly logs the
+      // linked WhatsApp device out (explicit owner request — the dashboard
+      // session and the WhatsApp session are two different things, but this
+      // specific button intentionally ends both). Setup-wizard profile data
+      // (name, assistant name, role, schedule, etc.) and the Access Code
+      // are both left completely untouched — re-verifying afterward lands
+      // back in the existing dashboard, just needing a fresh QR scan.
       if (req.method === "POST" && url.pathname === "/api/logout") {
         destroySession(getSessionToken(req));
         clearSessionCookie(res);
-        console.log("[WEB] Browser session logged out (WhatsApp connection left untouched).");
+
+        await logoutWhatsApp();
+        console.log("[WEB] Logged out: web session ended, WhatsApp device logged out, profile/settings kept.");
+
+        // Profile stays configured, so the owner skips the wizard entirely
+        // on next verify and lands straight on the dashboard's own
+        // "connecting" view — start the connection now (same pattern
+        // /api/confirm-setup uses) so a fresh QR is ready by then.
+        connectionState.startedOnce = true;
+        startBot().catch((err) => console.error("❌ Failed to restart WhatsApp connection after logout:", err.message));
+
+        // The session token is shared across every tab of the same browser
+        // (same cookie) — nudge every open /api/events (SSE) connection to
+        // recompute its own auth state right now, same mechanism
+        // setAvailability already uses for cross-tab updates. Each
+        // connection checks its OWN captured token against the now-updated
+        // revocation list (see access.js's isValidSession), so a second tab
+        // finds out its session was just invalidated and drops back to the
+        // login screen (app.js) instead of sitting on stale dashboard
+        // content until its next action happens to 401.
+        connectionEvents.emit("update");
         sendJson(res, 200, { ok: true });
         return;
       }
 
-      // Everything below this point is dashboard functionality — gated
-      // behind the verification code.
-      if (!isAuthenticated(req)) {
-        sendJson(res, 401, { ok: false, error: "Not verified." });
+      // OPTION 2 — "Logout & Clear Data": everything Option 1 does, PLUS a
+      // full reset of the setup-wizard profile (name, assistant name, role,
+      // generated prompt, schedule, availability) back to fresh-install
+      // defaults. The Access Code (ASSISTANT_ACCESS_CODE, .env) is never
+      // touched by either option — it isn't part of the profile object at
+      // all (see access.js). Re-verifying afterward lands back in the setup
+      // wizard from step 1, exactly like a first-ever run.
+      if (req.method === "POST" && url.pathname === "/api/logout-clear-data") {
+        destroySession(getSessionToken(req));
+        clearSessionCookie(res);
+
+        await logoutWhatsApp();
+        resetProfile();
+        console.log("[WEB] Logged out and cleared data: web session ended, WhatsApp device logged out, profile reset.");
+
+        // No startBot() here, deliberately — profile is no longer
+        // "configured", so the next verify goes through the setup wizard
+        // from step 1 again, and ITS OWN /api/confirm-setup call starts the
+        // connection once that's actually reached (connectionState
+        // .startedOnce was reset to false by logoutWhatsApp(), so that
+        // existing gate fires again exactly like a genuine first run).
+        connectionEvents.emit("update");
+        sendJson(res, 200, { ok: true });
         return;
       }
 

@@ -12,9 +12,11 @@ export const connectionState = {
   qr: null, // raw QR string, most recent (null once connected / before one exists)
   sock: null, // the live Baileys socket once connected — used by web-triggered actions (Get Summary)
   startedOnce: false, // guards against starting the bot twice from repeated "Next" clicks
+  connectedAt: null, // ms timestamp of the most recent "connected" transition — dashboard display only
 };
 
 export function setStatus(status, extra = {}) {
+  if (status === "connected") extra = { ...extra, connectedAt: Date.now() };
   Object.assign(connectionState, { status }, extra);
   connectionEvents.emit("update", connectionState);
 }

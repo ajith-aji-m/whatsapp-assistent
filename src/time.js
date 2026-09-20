@@ -142,3 +142,53 @@ export function describeScheduleStatus(scheduleProfile, now = new Date()) {
 
   return lines.length > 0 ? lines.join(" ") : null;
 }
+
+// Structured counterpart to describeScheduleStatus, for the dashboard's
+// "Today's Overview" card — that function returns a prose sentence meant for
+// the Groq prompt; the UI needs discrete fields to render instead. Reuses
+// the exact same parsing/formatting helpers so the two never disagree about
+// what "within working hours" or "on a break" means.
+export function getScheduleSnapshot(scheduleProfile, now = new Date()) {
+  if (!scheduleProfile) return null;
+
+  const local = toLocalParts(now);
+  const nowMinutes = local.hours * 60 + local.minutes;
+  const todayName = WEEKDAY_NAMES[local.dayOfWeek];
+
+  const hasWorkingDays = Array.isArray(scheduleProfile.workingDays) && scheduleProfile.workingDays.length > 0;
+  const isWorkingDay = hasWorkingDays ? scheduleProfile.workingDays.includes(todayName) : null;
+
+  const workStart = parseHHMM(scheduleProfile.workingHoursStart);
+  const workEnd = parseHHMM(scheduleProfile.workingHoursEnd);
+  const breakStart = parseHHMM(scheduleProfile.breakStart);
+  const breakEnd = parseHHMM(scheduleProfile.breakEnd);
+
+  const onBreak = breakStart !== null && breakEnd !== null && nowMinutes >= breakStart && nowMinutes < breakEnd;
+  const withinWorkingHours = workStart !== null && workEnd !== null && nowMinutes >= workStart && nowMinutes < workEnd;
+
+  let currentStatus = null; // "working" | "break" | "off" | null (not enough info)
+  if (isWorkingDay === false) currentStatus = "off";
+  else if (onBreak) currentStatus = "break";
+  else if (workStart !== null && workEnd !== null) currentStatus = withinWorkingHours ? "working" : "off";
+
+  const boundaries = [];
+  if (workStart !== null) boundaries.push({ minutes: workStart, label: `Working hours start at ${formatHHMMLabel(scheduleProfile.workingHoursStart)}` });
+  if (breakStart !== null) boundaries.push({ minutes: breakStart, label: `Break starts at ${formatHHMMLabel(scheduleProfile.breakStart)}` });
+  if (breakEnd !== null) boundaries.push({ minutes: breakEnd, label: `Back from break at ${formatHHMMLabel(scheduleProfile.breakEnd)}` });
+  if (workEnd !== null) boundaries.push({ minutes: workEnd, label: `Working hours end at ${formatHHMMLabel(scheduleProfile.workingHoursEnd)}` });
+  boundaries.sort((a, b) => a.minutes - b.minutes);
+  const next = boundaries.find((b) => b.minutes > nowMinutes) || null;
+
+  return {
+    todayName,
+    isWorkingDay,
+    workingHoursLabel:
+      workStart !== null && workEnd !== null
+        ? `${formatHHMMLabel(scheduleProfile.workingHoursStart)} – ${formatHHMMLabel(scheduleProfile.workingHoursEnd)}`
+        : null,
+    currentStatus,
+    onBreak,
+    breakUntilLabel: onBreak ? formatHHMMLabel(scheduleProfile.breakEnd) : null,
+    nextChangeLabel: next ? next.label : null,
+  };
+}

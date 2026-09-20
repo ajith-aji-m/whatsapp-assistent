@@ -1,5 +1,6 @@
 import "./env.js"; // ensures .env is loaded before we read process.env below
 import { loadPersistedAvailability, persistAvailability } from "./state.js";
+import { connectionEvents } from "./connectionState.js";
 
 // The owner's assistant profile — read from environment so nothing personal
 // is hard-coded throughout the codebase. Defaults here are just fallbacks;
@@ -58,4 +59,11 @@ export function getAvailability() {
 export function setAvailability(value) {
   profile.availability = value;
   persistAvailability(value);
+  // Notify the web dashboard's SSE stream (see connectionState.js/web.js) so
+  // an IN/OUT change is reflected live on every open dashboard tab —
+  // regardless of whether it was triggered from the dashboard's own buttons
+  // or from the owner's "/in"/"/out" WhatsApp commands (commands.js). Each
+  // listener rebuilds its own fresh status snapshot on this event, so the
+  // emitted value here is unused.
+  connectionEvents.emit("update");
 }

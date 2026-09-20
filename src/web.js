@@ -6,8 +6,9 @@ import qrcode from "qrcode";
 import { profile, setAvailability } from "./config.js";
 import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
-import { commandsListText } from "./commands.js";
+import { commandsListText, commandsList } from "./commands.js";
 import { generateSystemPrompt } from "./groq.js";
+import { getScheduleSnapshot } from "./time.js";
 import {
   SESSION_COOKIE_NAME,
   SESSION_MAX_AGE_SECONDS,
@@ -22,6 +23,23 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SETUP_PAGE_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
+
+// Explicit allowlist of static assets the page references (no wildcard
+// filesystem traversal from the URL) — this app has always served exactly
+// one file; this only adds the handful the redesigned UI needs (separate
+// CSS/JS instead of one inline blob, plus a local icon).
+const STATIC_ASSETS = {
+  "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
+  "/app.js": { file: "app.js", type: "application/javascript; charset=utf-8" },
+  "/assets/robot.svg": { file: "assets/robot.svg", type: "image/svg+xml" },
+};
+const staticAssetCache = new Map();
+function readStaticAsset(relPath) {
+  if (!staticAssetCache.has(relPath)) {
+    staticAssetCache.set(relPath, fs.readFileSync(path.join(__dirname, "public", relPath)));
+  }
+  return staticAssetCache.get(relPath);
+}
 
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
@@ -143,6 +161,7 @@ async function buildStatusPayload(authenticated) {
     configured,
     status: connectionState.status,
     qrDataUrl,
+    connectedAt: connectionState.connectedAt,
     profile: {
       name: profile.name,
       role: profile.role,
@@ -151,7 +170,8 @@ async function buildStatusPayload(authenticated) {
       scheduleEnabled: profile.scheduleEnabled,
       scheduleProfile: profile.scheduleProfile,
     },
-    ownerJid: profile.whatsappJid,
+    scheduleSnapshot:
+      profile.scheduleEnabled && profile.scheduleProfile ? getScheduleSnapshot(profile.scheduleProfile) : null,
   };
 }
 
@@ -173,6 +193,13 @@ export function startWebServer({ startBot, host, port }) {
       if (req.method === "GET" && url.pathname === "/") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
         res.end(SETUP_PAGE_HTML);
+        return;
+      }
+
+      if (req.method === "GET" && STATIC_ASSETS[url.pathname]) {
+        const asset = STATIC_ASSETS[url.pathname];
+        res.writeHead(200, { "Content-Type": asset.type, "Cache-Control": "no-cache" });
+        res.end(readStaticAsset(asset.file));
         return;
       }
 
@@ -405,7 +432,7 @@ export function startWebServer({ startBot, host, port }) {
       }
 
       if (req.method === "GET" && url.pathname === "/api/commands") {
-        sendJson(res, 200, { text: commandsListText() });
+        sendJson(res, 200, { text: commandsListText(), commands: commandsList() });
         return;
       }
 

@@ -102,6 +102,26 @@
   .avail-row { display: flex; gap: 10px; margin-top: 6px; }
   .avail-row button { margin-top: 0; flex: 1; background: var(--accent-off); }
   .avail-row button.active { background: var(--accent); }
+  .toggle-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; cursor: pointer; }
+  .toggle-row input { width: auto; margin: 0; }
+  .toggle-row label { margin: 0; font-weight: 600; cursor: pointer; }
+  .days-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+  .days-row label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin: 0;
+    flex: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+  .days-row input { width: auto; margin: 0; }
+  .time-row { display: flex; gap: 10px; margin-top: 4px; }
+  .time-row input { flex: 1; }
   pre {
     white-space: pre-wrap;
     background: var(--bg);
@@ -141,6 +161,58 @@
       <div class="radio-row">
         <label><input type="radio" name="availability" value="AVAILABLE" /><span>Available</span></label>
         <label><input type="radio" name="availability" value="UNAVAILABLE" checked /><span>Unavailable</span></label>
+      </div>
+
+      <div class="toggle-row">
+        <input type="checkbox" id="setupScheduleEnabled" />
+        <label for="setupScheduleEnabled">Enable schedule-aware responses (optional)</label>
+      </div>
+      <p class="hint">
+        Completely optional — tell the assistant your profession, working hours, and breaks so it can mention them
+        naturally to contacts (e.g. "back from lunch at 2pm"). Skip this and nothing changes.
+      </p>
+
+      <div id="setupScheduleFields" class="hidden">
+        <label for="setupProfession">Profession / Job</label>
+        <input type="text" id="setupProfession" placeholder="e.g. Software Developer" />
+
+        <label for="setupWorkplace">Workplace</label>
+        <input type="text" id="setupWorkplace" placeholder="e.g. Acme Corp" />
+
+        <label for="setupLocation">Work location / City</label>
+        <input type="text" id="setupLocation" placeholder="e.g. Thiruvananthapuram" />
+
+        <label>Working days</label>
+        <div class="days-row">
+          <label><input type="checkbox" class="setupWorkingDay" value="Monday" /> Mon</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Tuesday" /> Tue</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Wednesday" /> Wed</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Thursday" /> Thu</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Friday" /> Fri</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Saturday" /> Sat</label>
+          <label><input type="checkbox" class="setupWorkingDay" value="Sunday" /> Sun</label>
+        </div>
+
+        <label>Working hours (optional)</label>
+        <div class="time-row">
+          <input type="time" id="setupWorkingHoursStart" />
+          <input type="time" id="setupWorkingHoursEnd" />
+        </div>
+
+        <label>Break (optional)</label>
+        <div class="time-row">
+          <input type="time" id="setupBreakStart" />
+          <input type="time" id="setupBreakEnd" />
+        </div>
+
+        <label>Preferred communication hours (optional)</label>
+        <div class="time-row">
+          <input type="time" id="setupPreferredStart" />
+          <input type="time" id="setupPreferredEnd" />
+        </div>
+
+        <label for="setupScheduleNotes">Anything else (optional)</label>
+        <textarea id="setupScheduleNotes" placeholder="Any other simple professional availability info"></textarea>
       </div>
 
       <button type="submit" id="setupSubmit">Train Assistant</button>
@@ -206,6 +278,56 @@
       <button type="button" id="btnUnavailable">Unavailable</button>
     </div>
 
+    <div class="toggle-row">
+      <input type="checkbox" id="dashScheduleEnabled" />
+      <label for="dashScheduleEnabled">Enable schedule-aware responses (optional)</label>
+    </div>
+
+    <div id="dashScheduleFields" class="hidden">
+      <label for="dashProfession">Profession / Job</label>
+      <input type="text" id="dashProfession" placeholder="e.g. Software Developer" />
+
+      <label for="dashWorkplace">Workplace</label>
+      <input type="text" id="dashWorkplace" placeholder="e.g. Acme Corp" />
+
+      <label for="dashLocation">Work location / City</label>
+      <input type="text" id="dashLocation" placeholder="e.g. Thiruvananthapuram" />
+
+      <label>Working days</label>
+      <div class="days-row">
+        <label><input type="checkbox" class="dashWorkingDay" value="Monday" /> Mon</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Tuesday" /> Tue</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Wednesday" /> Wed</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Thursday" /> Thu</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Friday" /> Fri</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Saturday" /> Sat</label>
+        <label><input type="checkbox" class="dashWorkingDay" value="Sunday" /> Sun</label>
+      </div>
+
+      <label>Working hours (optional)</label>
+      <div class="time-row">
+        <input type="time" id="dashWorkingHoursStart" />
+        <input type="time" id="dashWorkingHoursEnd" />
+      </div>
+
+      <label>Break (optional)</label>
+      <div class="time-row">
+        <input type="time" id="dashBreakStart" />
+        <input type="time" id="dashBreakEnd" />
+      </div>
+
+      <label>Preferred communication hours (optional)</label>
+      <div class="time-row">
+        <input type="time" id="dashPreferredStart" />
+        <input type="time" id="dashPreferredEnd" />
+      </div>
+
+      <label for="dashScheduleNotes">Anything else (optional)</label>
+      <textarea id="dashScheduleNotes" placeholder="Any other simple professional availability info"></textarea>
+    </div>
+    <button type="button" class="secondary" id="btnSaveSchedule">Save Schedule Profile</button>
+    <div class="err hidden" id="scheduleError"></div>
+
     <button type="button" class="secondary" id="btnSummary">Get Summary</button>
     <button type="button" class="secondary" id="btnCommands">Show Commands</button>
     <button type="button" class="link" id="btnLogout">Logout</button>
@@ -243,6 +365,51 @@
     el("btnUnavailable").classList.toggle("active", availability === "UNAVAILABLE");
   }
 
+  // Shared by both the setup wizard ("setup" prefix) and the dashboard
+  // ("dash" prefix) sections for the OPTIONAL schedule-aware profile — same
+  // field set, same ids-minus-prefix, so one pair of helpers covers both
+  // instead of duplicating the read/write logic per screen.
+  function collectScheduleProfile(prefix) {
+    const workingDays = Array.from(document.querySelectorAll(`.${prefix}WorkingDay:checked`)).map((cb) => cb.value);
+    return {
+      profession: el(`${prefix}Profession`).value.trim(),
+      workplace: el(`${prefix}Workplace`).value.trim(),
+      location: el(`${prefix}Location`).value.trim(),
+      workingDays,
+      workingHoursStart: el(`${prefix}WorkingHoursStart`).value,
+      workingHoursEnd: el(`${prefix}WorkingHoursEnd`).value,
+      breakStart: el(`${prefix}BreakStart`).value,
+      breakEnd: el(`${prefix}BreakEnd`).value,
+      preferredStart: el(`${prefix}PreferredStart`).value,
+      preferredEnd: el(`${prefix}PreferredEnd`).value,
+      notes: el(`${prefix}ScheduleNotes`).value.trim(),
+    };
+  }
+
+  function fillScheduleProfile(prefix, data) {
+    const p = data || {};
+    el(`${prefix}Profession`).value = p.profession || "";
+    el(`${prefix}Workplace`).value = p.workplace || "";
+    el(`${prefix}Location`).value = p.location || "";
+    document.querySelectorAll(`.${prefix}WorkingDay`).forEach((cb) => {
+      cb.checked = Array.isArray(p.workingDays) && p.workingDays.includes(cb.value);
+    });
+    el(`${prefix}WorkingHoursStart`).value = p.workingHoursStart || "";
+    el(`${prefix}WorkingHoursEnd`).value = p.workingHoursEnd || "";
+    el(`${prefix}BreakStart`).value = p.breakStart || "";
+    el(`${prefix}BreakEnd`).value = p.breakEnd || "";
+    el(`${prefix}PreferredStart`).value = p.preferredStart || "";
+    el(`${prefix}PreferredEnd`).value = p.preferredEnd || "";
+    el(`${prefix}ScheduleNotes`).value = p.notes || "";
+  }
+
+  el("setupScheduleEnabled").addEventListener("change", () => {
+    el("setupScheduleFields").classList.toggle("hidden", !el("setupScheduleEnabled").checked);
+  });
+  el("dashScheduleEnabled").addEventListener("change", () => {
+    el("dashScheduleFields").classList.toggle("hidden", !el("dashScheduleEnabled").checked);
+  });
+
   // Applies a status snapshot for an AUTHENTICATED browser only — decides
   // between the QR screen and the dashboard. Never called with a snapshot
   // from a browser that hasn't passed verification yet.
@@ -254,6 +421,16 @@
       // Don't clobber the input while the owner is actively editing it.
       if (document.activeElement !== el("dashAssistantName")) {
         el("dashAssistantName").value = data.profile.assistantName || "";
+      }
+
+      // Same guard for the OPTIONAL schedule section — skip re-filling while
+      // any of its fields (or the enable toggle) currently has focus.
+      const scheduleFocused =
+        el("dashScheduleFields").contains(document.activeElement) || document.activeElement === el("dashScheduleEnabled");
+      if (!scheduleFocused) {
+        el("dashScheduleEnabled").checked = !!data.profile.scheduleEnabled;
+        el("dashScheduleFields").classList.toggle("hidden", !data.profile.scheduleEnabled);
+        fillScheduleProfile("dash", data.profile.scheduleProfile);
       }
     }
 
@@ -332,6 +509,12 @@
       role: el("role").value.trim(),
       instructions: el("instructions").value.trim(),
       availability: document.querySelector('input[name="availability"]:checked').value,
+      // OPTIONAL — carried through to /api/confirm-setup below untouched;
+      // an owner who left this section alone submits an all-blank object
+      // and scheduleEnabled: false, which the server treats as "not
+      // configured" (see web.js's sanitizeScheduleProfile).
+      scheduleEnabled: el("setupScheduleEnabled").checked,
+      scheduleProfile: collectScheduleProfile("setup"),
     };
 
     try {
@@ -494,6 +677,28 @@
       el("assistantNameError").classList.remove("hidden");
     } finally {
       el("btnSaveAssistantName").disabled = false;
+    }
+  });
+
+  el("btnSaveSchedule").addEventListener("click", async () => {
+    el("scheduleError").classList.add("hidden");
+    el("btnSaveSchedule").disabled = true;
+    try {
+      const res = await fetch("/api/schedule-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scheduleEnabled: el("dashScheduleEnabled").checked,
+          scheduleProfile: collectScheduleProfile("dash"),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.ok) throw new Error(data.error || "Could not save schedule profile.");
+    } catch (err) {
+      el("scheduleError").textContent = err.message || "Could not save schedule profile.";
+      el("scheduleError").classList.remove("hidden");
+    } finally {
+      el("btnSaveSchedule").disabled = false;
     }
   });
 

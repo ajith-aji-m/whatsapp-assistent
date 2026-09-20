@@ -37,6 +37,18 @@ export const profile = {
   // check both, the same way Baileys itself checks fromMe internally.
   whatsappJid: process.env.AJITH_WHATSAPP_JID || null, // "<number>@s.whatsapp.net" form
   whatsappLid: null, // "<opaque-id>@lid" form
+
+  // OPTIONAL personal/professional profile + schedule info (profession,
+  // workplace, working days/hours, breaks, preferred contact hours — see
+  // web.js's setup wizard/dashboard for how these get filled in). Every
+  // field inside scheduleProfile is itself optional. Both default to
+  // "nothing configured" so that, unless the owner deliberately fills this
+  // in AND enables it, assistant.js's contact-facing prompt is completely
+  // unchanged from before this feature existed — never invented, never
+  // required. In-memory only, like the rest of the setup-wizard profile
+  // fields above (only availability is persisted to disk — see state.js).
+  scheduleEnabled: false,
+  scheduleProfile: null,
 };
 
 export function getAvailability() {

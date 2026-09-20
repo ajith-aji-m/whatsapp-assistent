@@ -89,6 +89,41 @@ function clientIp(req) {
   return req.socket.remoteAddress || "unknown";
 }
 
+const SCHEDULE_WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const HHMM_RE = /^([01]?\d|2[0-3]):[0-5]\d$/;
+
+function sanitizeScheduleTime(value) {
+  return typeof value === "string" && HHMM_RE.test(value.trim()) ? value.trim() : "";
+}
+
+// Turns the raw (untrusted) request body for the optional schedule/profile
+// section into a clean object — every field independently optional, invalid
+// or unrecognized values just dropped rather than rejected, matching this
+// app's generally low-friction validation style elsewhere. Returns null when
+// nothing usable was actually provided, which callers treat as "not
+// configured" (see config.js's profile.scheduleProfile default).
+function sanitizeScheduleProfile(body) {
+  const src = body && typeof body === "object" ? body : {};
+  const workingDays = Array.isArray(src.workingDays) ? src.workingDays.filter((d) => SCHEDULE_WEEKDAYS.includes(d)) : [];
+
+  const scheduleProfile = {
+    profession: typeof src.profession === "string" ? src.profession.trim() : "",
+    workplace: typeof src.workplace === "string" ? src.workplace.trim() : "",
+    location: typeof src.location === "string" ? src.location.trim() : "",
+    workingDays,
+    workingHoursStart: sanitizeScheduleTime(src.workingHoursStart),
+    workingHoursEnd: sanitizeScheduleTime(src.workingHoursEnd),
+    breakStart: sanitizeScheduleTime(src.breakStart),
+    breakEnd: sanitizeScheduleTime(src.breakEnd),
+    preferredStart: sanitizeScheduleTime(src.preferredStart),
+    preferredEnd: sanitizeScheduleTime(src.preferredEnd),
+    notes: typeof src.notes === "string" ? src.notes.trim() : "",
+  };
+
+  const hasAnyData = Object.values(scheduleProfile).some((v) => (Array.isArray(v) ? v.length > 0 : !!v));
+  return hasAnyData ? scheduleProfile : null;
+}
+
 // Builds the JSON snapshot sent both from GET /api/status and over the SSE
 // stream. Deliberately excludes GROQ_API_KEY/GROQ_MODEL, the access
 // code, and any WhatsApp auth/session data. Before the browser has verified
@@ -113,6 +148,8 @@ async function buildStatusPayload(authenticated) {
       role: profile.role,
       assistantName: profile.assistantName,
       availability: profile.availability,
+      scheduleEnabled: profile.scheduleEnabled,
+      scheduleProfile: profile.scheduleProfile,
     },
     ownerJid: profile.whatsappJid,
   };
@@ -243,6 +280,15 @@ export function startWebServer({ startBot, host, port }) {
         // intentionally NOT accepted here — they come only from .env, never
         // from the browser.
 
+        // OPTIONAL schedule-aware profile (see config.js/assistant.js) —
+        // entirely skippable. If the owner left this section alone,
+        // scheduleProfile sanitizes to null and scheduleEnabled ends up
+        // false, so contact-facing behavior is unchanged from before this
+        // feature existed.
+        const scheduleProfile = sanitizeScheduleProfile(body.scheduleProfile);
+        profile.scheduleProfile = scheduleProfile;
+        profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
+
         console.log("[WEB] Setup wizard completed (assistant profile + system prompt saved).");
 
         if (!connectionState.startedOnce) {
@@ -328,6 +374,22 @@ export function startWebServer({ startBot, host, port }) {
         setAvailability(body.availability);
         console.log(`[WEB] Availability changed via web UI: ${body.availability}`);
         sendJson(res, 200, { ok: true, availability: body.availability });
+        return;
+      }
+
+      // Lets the owner add/edit/enable/disable the OPTIONAL schedule-aware
+      // profile from the dashboard at any time, without redoing the whole
+      // setup wizard (mirrors /api/assistant-name above). Sending this with
+      // an empty/all-blank scheduleProfile and scheduleEnabled: false is how
+      // the owner turns the feature back off — existing contact-facing
+      // behavior reverts to unchanged the moment they do.
+      if (req.method === "POST" && url.pathname === "/api/schedule-profile") {
+        const body = await readJsonBody(req);
+        const scheduleProfile = sanitizeScheduleProfile(body.scheduleProfile);
+        profile.scheduleProfile = scheduleProfile;
+        profile.scheduleEnabled = !!body.scheduleEnabled && !!scheduleProfile;
+        console.log(`[WEB] Schedule-aware profile ${profile.scheduleEnabled ? "enabled" : "disabled"} via dashboard.`);
+        sendJson(res, 200, { ok: true, scheduleEnabled: profile.scheduleEnabled, scheduleProfile: profile.scheduleProfile });
         return;
       }
 

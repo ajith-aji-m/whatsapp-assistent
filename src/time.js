@@ -19,6 +19,7 @@ function toLocalParts(date) {
     date: shifted.getUTCDate(),
     hours: shifted.getUTCHours(),
     minutes: shifted.getUTCMinutes(),
+    dayOfWeek: shifted.getUTCDay(), // 0=Sunday..6=Saturday, in the owner's local timezone
   };
 }
 
@@ -61,4 +62,83 @@ export function describeNowForPrompt(now = new Date()) {
   const offsetHours = TIMEZONE_OFFSET_MINUTES / 60;
   const sign = offsetHours >= 0 ? "+" : "-";
   return `${now.toISOString()} UTC (owner's local time is UTC${sign}${Math.abs(offsetHours)}: ${formatLocalDateTime(now)})`;
+}
+
+const WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+// Parses an "HH:MM" 24-hour string into minutes-since-midnight, or null if
+// it's missing/malformed — every schedule field this feeds (see config.js's
+// optional profile.scheduleProfile) is itself optional, so callers must
+// treat null as "this field wasn't set/valid" and simply skip it rather than
+// erroring.
+function parseHHMM(value) {
+  const match = typeof value === "string" && /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value.trim());
+  if (!match) return null;
+  return Number(match[1]) * 60 + Number(match[2]);
+}
+
+function formatHHMMLabel(value) {
+  const totalMinutes = parseHHMM(value);
+  if (totalMinutes === null) return value;
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  const hour12 = ((hours + 11) % 12) + 1;
+  const ampm = hours >= 12 ? "PM" : "AM";
+  return `${hour12}:${String(minutes).padStart(2, "0")} ${ampm}`;
+}
+
+// Best-effort, human-readable description of where "now" falls relative to
+// the owner's OPTIONAL working schedule (see config.js's
+// profile.scheduleProfile, filled in via the web setup wizard/dashboard —
+// see web.js). Every field on scheduleProfile is independently optional, so
+// this only describes whatever was actually provided and returns null the
+// moment there's nothing usable — assistant.js treats null the same as "no
+// schedule configured at all", so a partially filled-in profile never
+// invents facts about fields the owner left blank.
+export function describeScheduleStatus(scheduleProfile, now = new Date()) {
+  if (!scheduleProfile) return null;
+
+  const local = toLocalParts(now);
+  const nowMinutes = local.hours * 60 + local.minutes;
+  const todayName = WEEKDAY_NAMES[local.dayOfWeek];
+  const lines = [];
+
+  if (Array.isArray(scheduleProfile.workingDays) && scheduleProfile.workingDays.length > 0) {
+    const isWorkingDay = scheduleProfile.workingDays.includes(todayName);
+    lines.push(
+      isWorkingDay
+        ? `Today (${todayName}) is one of the owner's working days.`
+        : `Today (${todayName}) is NOT one of the owner's working days.`
+    );
+  }
+
+  const workStart = parseHHMM(scheduleProfile.workingHoursStart);
+  const workEnd = parseHHMM(scheduleProfile.workingHoursEnd);
+  if (workStart !== null && workEnd !== null) {
+    const withinHours = nowMinutes >= workStart && nowMinutes < workEnd;
+    lines.push(
+      withinHours
+        ? `It is currently within the owner's working hours (${formatHHMMLabel(scheduleProfile.workingHoursStart)}–${formatHHMMLabel(scheduleProfile.workingHoursEnd)}).`
+        : `It is currently outside the owner's working hours (${formatHHMMLabel(scheduleProfile.workingHoursStart)}–${formatHHMMLabel(scheduleProfile.workingHoursEnd)}).`
+    );
+  }
+
+  const breakStart = parseHHMM(scheduleProfile.breakStart);
+  const breakEnd = parseHHMM(scheduleProfile.breakEnd);
+  if (breakStart !== null && breakEnd !== null && nowMinutes >= breakStart && nowMinutes < breakEnd) {
+    lines.push(`The owner is currently on a break, until ${formatHHMMLabel(scheduleProfile.breakEnd)}.`);
+  }
+
+  const prefStart = parseHHMM(scheduleProfile.preferredStart);
+  const prefEnd = parseHHMM(scheduleProfile.preferredEnd);
+  if (prefStart !== null && prefEnd !== null) {
+    const withinPreferred = nowMinutes >= prefStart && nowMinutes < prefEnd;
+    lines.push(
+      withinPreferred
+        ? `Now is within the owner's preferred time to be contacted (${formatHHMMLabel(scheduleProfile.preferredStart)}–${formatHHMMLabel(scheduleProfile.preferredEnd)}).`
+        : `Now is outside the owner's preferred contact hours (${formatHHMMLabel(scheduleProfile.preferredStart)}–${formatHHMMLabel(scheduleProfile.preferredEnd)}).`
+    );
+  }
+
+  return lines.length > 0 ? lines.join(" ") : null;
 }

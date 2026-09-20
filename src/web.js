@@ -22,24 +22,24 @@ import {
 } from "./access.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SETUP_PAGE_HTML = fs.readFileSync(path.join(__dirname, "public", "index.html"), "utf8");
 
 // Explicit allowlist of static assets the page references (no wildcard
 // filesystem traversal from the URL) — this app has always served exactly
 // one file; this only adds the handful the redesigned UI needs (separate
-// CSS/JS instead of one inline blob, plus a local icon).
+// CSS/JS instead of one inline blob, plus a local icon). Read fresh from
+// disk on every request rather than cached at startup — this is a
+// low-traffic, single-owner control panel, so the disk read is free, and it
+// means an edit to index.html/app.css/app.js takes effect on next reload
+// without having to restart the whole process (which also re-runs the
+// Baileys connection).
+function readPublicFile(relPath) {
+  return fs.readFileSync(path.join(__dirname, "public", relPath));
+}
 const STATIC_ASSETS = {
   "/app.css": { file: "app.css", type: "text/css; charset=utf-8" },
   "/app.js": { file: "app.js", type: "application/javascript; charset=utf-8" },
   "/assets/robot.svg": { file: "assets/robot.svg", type: "image/svg+xml" },
 };
-const staticAssetCache = new Map();
-function readStaticAsset(relPath) {
-  if (!staticAssetCache.has(relPath)) {
-    staticAssetCache.set(relPath, fs.readFileSync(path.join(__dirname, "public", relPath)));
-  }
-  return staticAssetCache.get(relPath);
-}
 
 function sendJson(res, status, data) {
   const body = JSON.stringify(data);
@@ -192,14 +192,14 @@ export function startWebServer({ startBot, host, port }) {
       // Single static page — no framework, no build step, no other files served.
       if (req.method === "GET" && url.pathname === "/") {
         res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(SETUP_PAGE_HTML);
+        res.end(readPublicFile("index.html"));
         return;
       }
 
       if (req.method === "GET" && STATIC_ASSETS[url.pathname]) {
         const asset = STATIC_ASSETS[url.pathname];
         res.writeHead(200, { "Content-Type": asset.type, "Cache-Control": "no-cache" });
-        res.end(readStaticAsset(asset.file));
+        res.end(readPublicFile(asset.file));
         return;
       }
 

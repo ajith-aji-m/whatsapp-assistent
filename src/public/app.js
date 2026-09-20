@@ -159,15 +159,36 @@
   });
 
   // ------------------------------------------------------------------
-  // Toast
+  // Toast — type is "info" (default), "success", or "error"; see .toast.*
+  // in app.css. Used for lightweight, transient confirmations; use
+  // showError/showSuccess below for feedback anchored to a specific field.
   // ------------------------------------------------------------------
   let toastTimer = null;
-  function toast(msg) {
+  function toast(msg, type) {
     const t = el("toast");
     t.textContent = msg;
-    t.classList.remove("hidden");
+    t.className = `toast${type ? ` ${type}` : ""}`;
     clearTimeout(toastTimer);
     toastTimer = setTimeout(() => t.classList.add("hidden"), 2200);
+  }
+
+  // ------------------------------------------------------------------
+  // Reusable field-level error/success messages — every form in this app
+  // was independently repeating the same "set text, toggle hidden" pairs
+  // (8+ call sites); these replace that with one shared implementation.
+  // Callers still own their own dedicated <div> (e.g. #loginError) so
+  // messages stay anchored next to the field they're about to it.
+  // ------------------------------------------------------------------
+  function showError(node, msg) {
+    node.textContent = msg;
+    node.className = "error-text";
+  }
+  function showSuccess(node, msg) {
+    node.textContent = msg;
+    node.className = "success-text";
+  }
+  function hideMessage(node) {
+    node.classList.add("hidden");
   }
 
   // ==================================================================
@@ -175,7 +196,7 @@
   // ==================================================================
   el("loginForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    el("loginError").classList.add("hidden");
+    hideMessage(el("loginError"));
     el("loginSubmit").disabled = true;
     try {
       const res = await fetch("/api/verify", {
@@ -194,8 +215,7 @@
         routeAuthenticatedStatus(statusData);
       }
     } catch (err) {
-      el("loginError").textContent = err.message || "Invalid access code.";
-      el("loginError").classList.remove("hidden");
+      showError(el("loginError"), err.message || "Invalid access code.");
     } finally {
       el("loginSubmit").disabled = false;
     }
@@ -235,7 +255,7 @@
     e.preventDefault();
     if (isTraining) return;
     isTraining = true;
-    el("setupError").classList.add("hidden");
+    hideMessage(el("setupError"));
     el("setupSubmit").disabled = true;
     el("setupSubmit").textContent = "Training your assistant…";
 
@@ -260,8 +280,7 @@
       el("wizDetailsPane").classList.add("hidden");
       el("wizPromptPane").classList.remove("hidden");
     } catch (err) {
-      el("setupError").textContent = err.message || "Could not train the assistant. Please try again.";
-      el("setupError").classList.remove("hidden");
+      showError(el("setupError"), err.message || "Could not train the assistant. Please try again.");
     } finally {
       isTraining = false;
       el("setupSubmit").disabled = false;
@@ -283,7 +302,7 @@
 
   el("btnRegenerate").addEventListener("click", async () => {
     if (!wizardDetails) return;
-    el("promptError").classList.add("hidden");
+    hideMessage(el("promptError"));
     el("btnRegenerate").disabled = true;
     el("btnRegenerate").textContent = "Regenerating…";
     try {
@@ -295,9 +314,9 @@
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Prompt generation failed.");
       el("promptText").value = data.prompt;
+      toast("Prompt regenerated.", "success");
     } catch (err) {
-      el("promptError").textContent = err.message || "Could not regenerate the prompt.";
-      el("promptError").classList.remove("hidden");
+      showError(el("promptError"), err.message || "Could not regenerate the prompt.");
     } finally {
       el("btnRegenerate").disabled = false;
       el("btnRegenerate").textContent = "Regenerate";
@@ -307,8 +326,7 @@
   el("btnPromptContinue").addEventListener("click", () => {
     const systemPrompt = el("promptText").value.trim();
     if (!systemPrompt) {
-      el("promptError").textContent = "Prompt can't be empty.";
-      el("promptError").classList.remove("hidden");
+      showError(el("promptError"), "Prompt can't be empty.");
       return;
     }
     wizardSystemPrompt = systemPrompt;
@@ -322,7 +340,7 @@
   });
 
   el("btnStep2Continue").addEventListener("click", async () => {
-    el("scheduleWizardError").classList.add("hidden");
+    hideMessage(el("scheduleWizardError"));
     el("btnStep2Continue").disabled = true;
     wizardScheduleEnabled = el("setupScheduleEnabled").checked;
     wizardScheduleProfile = collectScheduleProfile("setup");
@@ -344,8 +362,7 @@
       el("wizConnectAuthPane").classList.remove("hidden");
       el("wizConnectQrPane").classList.add("hidden");
     } catch (err) {
-      el("scheduleWizardError").textContent = err.message || "Could not save setup. Please try again.";
-      el("scheduleWizardError").classList.remove("hidden");
+      showError(el("scheduleWizardError"), err.message || "Could not save setup. Please try again.");
     } finally {
       el("btnStep2Continue").disabled = false;
     }
@@ -353,7 +370,7 @@
 
   el("wizVerifyForm").addEventListener("submit", async (e) => {
     e.preventDefault();
-    el("wizVerifyError").classList.add("hidden");
+    hideMessage(el("wizVerifyError"));
     el("wizVerifySubmit").disabled = true;
     try {
       const res = await fetch("/api/verify", {
@@ -374,8 +391,7 @@
         updateWizardConnect(statusData);
       }
     } catch (err) {
-      el("wizVerifyError").textContent = err.message || "Invalid access code.";
-      el("wizVerifyError").classList.remove("hidden");
+      showError(el("wizVerifyError"), err.message || "Invalid access code.");
     } finally {
       el("wizVerifySubmit").disabled = false;
     }
@@ -587,11 +603,10 @@
   el("btnSetOut").addEventListener("click", () => setAvailability("UNAVAILABLE"));
 
   el("btnSaveAssistantName").addEventListener("click", async () => {
-    el("assistantNameError").classList.add("hidden");
+    hideMessage(el("assistantNameError"));
     const assistantName = el("dashAssistantName").value.trim();
     if (!assistantName) {
-      el("assistantNameError").textContent = "Assistant name can't be empty.";
-      el("assistantNameError").classList.remove("hidden");
+      showError(el("assistantNameError"), "Assistant name can't be empty.");
       return;
     }
     el("btnSaveAssistantName").disabled = true;
@@ -603,17 +618,16 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Could not save the assistant name.");
-      toast("Assistant name saved.");
+      toast("Assistant name saved.", "success");
     } catch (err) {
-      el("assistantNameError").textContent = err.message || "Could not save the assistant name.";
-      el("assistantNameError").classList.remove("hidden");
+      showError(el("assistantNameError"), err.message || "Could not save the assistant name.");
     } finally {
       el("btnSaveAssistantName").disabled = false;
     }
   });
 
   el("btnSaveSchedule").addEventListener("click", async () => {
-    el("scheduleError").classList.add("hidden");
+    hideMessage(el("scheduleError"));
     el("btnSaveSchedule").disabled = true;
     try {
       const res = await fetch("/api/schedule-profile", {
@@ -626,10 +640,9 @@
       });
       const data = await res.json();
       if (!res.ok || !data.ok) throw new Error(data.error || "Could not save schedule profile.");
-      toast("Schedule profile saved.");
+      toast("Schedule profile saved.", "success");
     } catch (err) {
-      el("scheduleError").textContent = err.message || "Could not save schedule profile.";
-      el("scheduleError").classList.remove("hidden");
+      showError(el("scheduleError"), err.message || "Could not save schedule profile.");
     } finally {
       el("btnSaveSchedule").disabled = false;
     }
@@ -678,7 +691,7 @@
             /* clipboard unavailable — still give visual feedback below */
           }
           btn.classList.add("copied");
-          toast(`Copied ${btn.dataset.copy}`);
+          toast(`Copied ${btn.dataset.copy}`, "success");
           setTimeout(() => btn.classList.remove("copied"), 1200);
         });
       });
@@ -757,7 +770,7 @@
   async function submitLogout(endpoint, errorEl) {
     if (loggingOut) return false;
     loggingOut = true;
-    errorEl.classList.add("hidden");
+    hideMessage(errorEl);
     try {
       const res = await fetch(endpoint, { method: "POST" });
       if (!res.ok) throw new Error("Logout request failed");
@@ -768,14 +781,13 @@
       // so it's safer to say so and let the owner retry than to pretend
       // logout succeeded (or show a raw technical error).
       loggingOut = false;
-      errorEl.textContent = "Couldn't log out — check your connection and try again.";
-      errorEl.classList.remove("hidden");
+      showError(errorEl, "Couldn't log out — check your connection and try again.");
       return false;
     }
   }
 
   function openLogoutModal() {
-    el("logoutModalError").classList.add("hidden");
+    hideMessage(el("logoutModalError"));
     el("logoutModal").classList.remove("hidden");
   }
   function closeLogoutModal() {
@@ -808,7 +820,7 @@
   // must be clearly distinguishable and require an extra confirmation).
   el("optLogoutClear").addEventListener("click", () => {
     closeLogoutModal();
-    el("logoutClearConfirmError").classList.add("hidden");
+    hideMessage(el("logoutClearConfirmError"));
     el("logoutClearConfirmModal").classList.remove("hidden");
   });
   el("btnCancelClearData").addEventListener("click", closeClearConfirmModal);

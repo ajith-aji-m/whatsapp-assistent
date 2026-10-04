@@ -260,7 +260,7 @@ async function executeIntent(intent) {
       const key = (intent.key || "").trim();
       const value = (intent.value || "").trim();
       if (!key || !value) return "I need the detail and its value to remember it.";
-      updatePersonalMemory(key, value, "owner");
+      await updatePersonalMemory(key, value, "owner");
       return `Got it — I’ll remember that ${key} is ${value}.`;
     }
 

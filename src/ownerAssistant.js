@@ -3,6 +3,7 @@ import { addTask, listTasks, completeTask, addNote, listNotes, getCounts, search
 import { routeOwnerMessage, groqConfigured } from "./groq.js";
 import { updatePersonalMemory } from "./memoryStore.js";
 import { readLatestErrorLog } from "./driveStore.js";
+import { recordLatestError } from "./errorLogger.js";
 
 const MAX_CONTEXT_MESSAGES = 20;
 const ownerContext = [];
@@ -110,12 +111,22 @@ export async function handleOwnerMessage(sock, remoteJid, text) {
   const priorContext = [...ownerContext];
   let intent = parseDeterministic(text);
   if (!intent) {
-    try { intent = await routeOwnerMessage(text, priorContext); }
-    catch (err) { console.error("❌ Groq routing failed:", err.message); intent = { intent: "CHAT", reply: null }; }
+    try {
+      intent = await routeOwnerMessage(text, priorContext);
+    } catch (err) {
+      console.error("❌ Groq routing failed:", err.message);
+      await recordLatestError({ type: "AI Routing Error", message: err.message, context: `routeOwnerMessage: ${text.slice(0, 500)}` });
+      intent = { intent: "CHAT", reply: "AI service temporarily unavailable 😅 Please try again." };
+    }
   }
   let replyText;
-  try { replyText = await executeIntent(intent); }
-  catch (err) { console.error("❌ Error executing owner intent:", err.message); replyText = "Something went wrong handling that 😅 Please try again."; }
+  try {
+    replyText = await executeIntent(intent);
+  } catch (err) {
+    console.error("❌ Error executing owner intent:", err.message);
+    await recordLatestError({ type: "Owner Intent Error", message: err.message, context: `intent=${intent?.intent || "unknown"}; text=${text.slice(0, 500)}` });
+    replyText = "I couldn't save/process that right now 😅 I recorded the latest error. Please try again."; 
+  }
   recordContext("user", text);
   recordContext("assistant", replyText);
   await sock.sendMessage(remoteJid, { text: replyText });

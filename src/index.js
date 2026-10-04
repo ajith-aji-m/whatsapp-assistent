@@ -130,7 +130,7 @@ async function startBot() {
       `Message: ${error.message.slice(0, 1500)}`,
       error.context ? `Context: ${error.context.slice(0, 800)}` : ""
     ].filter(Boolean);
-    await sock.sendMessage(ownerJid, { text: lines.join("\\n") });
+    await sock.sendMessage(ownerJid, { text: lines.join("\n") });
   });
 
   // Save updated credentials whenever they change

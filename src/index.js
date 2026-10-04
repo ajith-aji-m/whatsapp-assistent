@@ -282,17 +282,16 @@ async function startBot() {
 
       try {
         const normalizedText = text.trim();
-        const lowerText = normalizedText.toLowerCase();
 
         // Conversation endings are handled deterministically so a model
         // cannot keep reopening the chat with repeated greetings or
         // "anything else?" questions.
-        const isEndingMessage = /^(bye|bye bye|goodbye|good bye|ok bye|okay bye|take care|thanks bye|thank you bye|see you|see ya|talk later|i'?ll talk later|will talk later|catch you later|ttyl|done|that'?s all|thats all)[.!?\\s]*$/i.test(normalizedText);
+        const isEndingMessage = /^(bye|bye bye|goodbye|good bye|ok bye|okay bye|take care|thanks bye|thank you bye|see you|see ya|talk later|i'?ll talk later|will talk later|catch you later|ttyl|done|that'?s all|thats all)[.!?\s]*$/i.test(normalizedText);
 
         if (isConversationClosed(remoteJid)) {
           // Once a conversation is closed, acknowledgements/endings are
           // silent. Only a genuinely new message reopens the conversation.
-          if (isEndingMessage || /^(ok|okay|thanks|thank you|👍|👌)[.!?\\s]*$/i.test(normalizedText)) continue;
+          if (isEndingMessage || /^(ok|okay|thanks|thank you|👍|👌)[.!?\s]*$/i.test(normalizedText)) continue;
           reopenConversation(remoteJid, msg.pushName);
         }
 

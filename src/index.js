@@ -4,6 +4,7 @@ import makeWASocket, {
   fetchLatestBaileysVersion,
   jidNormalizedUser,
   generateMessageIDV2,
+  downloadMediaMessage,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
 import pino from "pino";
@@ -12,6 +13,7 @@ import { profile } from "./config.js"; // also loads .env as a side effect (see 
 import { hasConversation, recordMessage, isConversationClosed, closeConversation, reopenConversation } from "./store.js";
 import { handleOwnerCommand, isAjith } from "./commands.js";
 import { generateAssistantReply } from "./assistant.js";
+import { transcribeGroqAudio } from "./groq.js";
 import { handleOwnerMessage } from "./ownerAssistant.js";
 import { setStatus, connectionState } from "./connectionState.js";
 import { markSelfSent, isSelfSent } from "./selfEcho.js";
@@ -234,7 +236,17 @@ async function startBot() {
 
       const remoteJid = msg.key.remoteJid;
       const fromMe = !!msg.key.fromMe;
-      const text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+      let text = msg.message.conversation || msg.message.extendedTextMessage?.text;
+      const audioMessage = msg.message.audioMessage;
+      if (!text && audioMessage) {
+        try {
+          const audioBuffer = await downloadMediaMessage(msg, "buffer", {});
+          text = await transcribeGroqAudio(audioBuffer, audioMessage.mimetype || "audio/ogg");
+        } catch (err) {
+          console.error("⚠️ Voice message transcription failed:", err.message);
+          text = "";
+        }
+      }
       const recognizedAsOwnerCommand = fromMe && isAjith(remoteJid) && !!text;
 
       // Group/status guard FIRST, before anything else — never act on these,

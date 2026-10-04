@@ -113,7 +113,7 @@ async function ensureTextFile(name, folderId, initialContent = "") {
   const boundary = `drive-boundary-${crypto.randomUUID()}`;
   const metadata = JSON.stringify({ name, mimeType: "text/plain", parents: [folderId] });
   const content = initialContent;
-  const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: application/json", "", content, `--${boundary}--`, ""].join("\r\n");
+  const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: text/plain; charset=UTF-8", "", content, `--${boundary}--`, ""].join("\r\n");
   const data = await driveRequest(DRIVE_API, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
   return data.id;
 }

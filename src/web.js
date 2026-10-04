@@ -368,7 +368,22 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
-      if (req.method === "GET" && url.pathname === "/api/google-drive/connect") {\n        try {\n          const authUrl = createGoogleDriveAuthUrl();\n          sendJson(res, 200, { ok: true, authUrl });\n        } catch (err) {\n          sendJson(res, 503, { ok: false, error: err.message });\n        }\n        return;\n      }\n\n      if (req.method === "GET" && url.pathname === "/api/google-drive/status") {\n        sendJson(res, 200, { ok: true, ...getGoogleDriveStatus() });\n        return;\n      }\n\n      if (req.method === "POST" && url.pathname === "/api/logout") {
+      if (req.method === "GET" && url.pathname === "/api/google-drive/connect") {
+        try {
+          const authUrl = createGoogleDriveAuthUrl();
+          sendJson(res, 200, { ok: true, authUrl });
+        } catch (err) {
+          sendJson(res, 503, { ok: false, error: err.message });
+        }
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/google-drive/status") {
+        sendJson(res, 200, { ok: true, ...getGoogleDriveStatus() });
+        return;
+      }
+
+\n      if (req.method === "POST" && url.pathname === "/api/logout") {
         destroySession(getSessionToken(req));
         clearSessionCookie(res);
 

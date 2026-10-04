@@ -15,7 +15,8 @@ function recordContext(role, text) {
 function parseDeterministic(rawText) {
   const text = rawText.trim();
   if (/^\/help$/i.test(text) || /^help$/i.test(text) || /^what can you do\??$/i.test(text)) return { intent: "HELP" };
-  if (/^\/status$/i.test(text)) return { intent: "STATUS" };\n  if (/^(\/error|\/errors|latest error|error log|latest error log)$/i.test(text)) return { intent: "LATEST_ERROR" };
+  if (/^\/status$/i.test(text)) return { intent: "STATUS" };
+  if (/^(\/error|\/errors|latest error|error log|latest error log)$/i.test(text)) return { intent: "LATEST_ERROR" };
   if (/^\/tasks$/i.test(text)) return { intent: "TASK_LIST" };
   let m = text.match(/^\/task\s+done\s+#?(\d+)$/i);
   if (m) return { intent: "TASK_COMPLETE", taskId: parseInt(m[1], 10) };
@@ -53,9 +54,17 @@ async function formatStatus() {
 async function executeIntent(intent) {
   switch (intent.intent) {
     case "HELP": return formatHelp();
-    case "STATUS": return formatStatus();\n    case "LATEST_ERROR": {\n      try {\n        const latestError = await readLatestErrorLog();\n        return latestError ? "⚠️ Latest error
-
-" + latestError : "✅ No error is currently recorded in errorLog.txt.";\n      } catch (err) {\n        return "⚠️ I could not read the latest error log from Google Drive: " + err.message;\n      }\n    }
+    case "STATUS": return formatStatus();
+    case "LATEST_ERROR": {
+      try {
+        const latestError = await readLatestErrorLog();
+        return latestError
+          ? "⚠️ Latest error\\n\\n" + latestError
+          : "✅ No error is currently recorded in errorLog.txt.";
+      } catch (err) {
+        return "⚠️ I could not read the latest error log from Google Drive: " + err.message;
+      }
+    }
     case "SUMMARY": return formatSummary();
     case "MEMORY_UPDATE": {
       const key = (intent.key || "").trim();

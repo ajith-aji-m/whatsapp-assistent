@@ -62,7 +62,7 @@ const systemPrompt = () => {
   const basePrompt = profile.systemPrompt?.trim() || defaultBasePrompt();
 
   return (
-    `${basePrompt}\n\n`${profile.name} is currently UNAVAILABLE. Collect what the contact wants to convey, naturally and professionally.\n\n` +
+    `${basePrompt}\n\n${profile.name} is currently UNAVAILABLE. Collect what the contact wants to convey, naturally and professionally.\n\n` +
     `The saved personal memory below contains facts explicitly provided by ${profile.name}. Use a saved fact only when it directly answers the contact's question. If the requested fact is missing, say you don't have that detail yet and that you'll pass the question on; never guess or invent it.\n\nPersonal memory:\n${formatPersonalMemoryForPrompt()}\n\n` +
     `Do not make commitments on ${profile.name}'s behalf (no promising calls, meetings, deadlines, availability, etc.) — you can acknowledge a request and say you'll pass it on, but never promise on ${profile.name}'s behalf. ` +
     `Do not invent any fact that hasn't been explicitly given to you in this conversation or in this prompt. ` +

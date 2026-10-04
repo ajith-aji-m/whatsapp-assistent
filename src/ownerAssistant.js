@@ -59,7 +59,7 @@ async function executeIntent(intent) {
       try {
         const latestError = await readLatestErrorLog();
         return latestError
-          ? "⚠️ Latest error\\n\\n" + latestError
+          ? "⚠️ Latest error\n\n" + latestError
           : "✅ No error is currently recorded in errorLog.txt.";
       } catch (err) {
         return "⚠️ I could not read the latest error log from Google Drive: " + err.message;

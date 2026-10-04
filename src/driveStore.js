@@ -142,11 +142,30 @@ export async function readPersonalMemoryFromDrive() {
 async function ensureMemoryFile(folderId) {
   const existing = await findFile(MEMORY_FILE_NAME, folderId, "application/json");
   if (existing) return existing.id;
-  const boundary = `drive-boundary-${crypto.randomUUID()}`;
-  const metadata = JSON.stringify({ name: MEMORY_FILE_NAME, mimeType: "application/json", parents: [folderId] });
-  const content = JSON.stringify({ version: 1, updatedAt: null, facts: {} }, null, 2);
-  const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: application/json", "", content, `--${boundary}--`, ""].join("\r\n");
-  const data = await driveRequest(`${DRIVE_API}?uploadType=multipart`, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
+
+  // Create metadata first, then upload the JSON body as media.
+  // This avoids Drive multipart JSON parsing issues for the memory file.
+  const metadata = { name: MEMORY_FILE_NAME, mimeType: "application/json", parents: [folderId] };
+  const data = await driveRequest(DRIVE_API, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(metadata)
+  });
+  if (!data?.id) throw new Error("Google Drive created personalMemory.json without returning a file id.");
+
+  const initialMemory = JSON.stringify({ version: 1, updatedAt: null, facts: {} }, null, 2);
+  const token = await getAccessToken();
+  const response = await fetch(`${DRIVE_UPLOAD_API}/${data.id}?uploadType=media`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json; charset=utf-8" },
+    body: initialMemory
+  });
+  if (!response.ok) {
+    const errorText = await response.text();
+    let errorData;
+    try { errorData = errorText ? JSON.parse(errorText) : null; } catch { errorData = null; }
+    throw new Error(errorData?.error?.message || `Could not initialize personalMemory.json in Drive: ${response.status}`);
+  }
   return data.id;
 }
 

@@ -18,6 +18,7 @@ import { handleOwnerMessage } from "./ownerAssistant.js";
 import { setStatus, connectionState } from "./connectionState.js";
 import { markSelfSent, isSelfSent } from "./selfEcho.js";
 import { isDuplicateMessage } from "./messageDedup.js";
+import { recordLatestError, setErrorNotifier } from "./errorLogger.js";
 
 // Back to "silent" now that the connection itself is confirmed working —
 // keeps the terminal readable while we test message handling.
@@ -117,6 +118,20 @@ async function startBot() {
     markSelfSent(messageId);
     return originalSendMessage(jid, content, { ...options, messageId });
   };
+
+  // If Google Drive cannot receive the latest error log, notify the owner in
+  // the existing WhatsApp self-chat instead of introducing an external webhook.
+  setErrorNotifier(async (error) => {
+    const ownerJid = profile.whatsappJid || profile.whatsappLid;
+    if (!ownerJid) throw new Error("Owner WhatsApp self-chat is not available yet.");
+    const lines = [
+      "⚠️ Personal Assistant Error",
+      `Type: ${error.type}`,
+      `Message: ${error.message.slice(0, 1500)}`,
+      error.context ? `Context: ${error.context.slice(0, 800)}` : ""
+    ].filter(Boolean);
+    await sock.sendMessage(ownerJid, { text: lines.join("\\n") });
+  });
 
   // Save updated credentials whenever they change
   sock.ev.on("creds.update", saveCreds);
@@ -275,7 +290,7 @@ async function startBot() {
           // group-excluded self-chat this block already only runs for.
           if (!handled) await handleOwnerMessage(sock, remoteJid, text);
         } catch (err) {
-          console.error("❌ Error handling owner command:", err.message);
+          console.error("❌ Error handling owner command:", err.message);\n          await recordLatestError({ type: "Owner Command Error", message: err.message, context: "handleOwnerCommand / handleOwnerMessage" });
         }
         continue; // the owner's own message never falls through to the contact-reply flow below
       }
@@ -331,7 +346,7 @@ async function startBot() {
         // generateAssistantReply already has its own fallback/catch for
         // Groq failures — this only catches something else going wrong
         // (e.g. sock.sendMessage itself failing), so the bot never crashes.
-        console.error("❌ Error handling message:", err.message);
+        console.error("❌ Error handling message:", err.message);\n        await recordLatestError({ type: "Message Handling Error", message: err.message, context: "messages.upsert contact handling" });
       }
     }
   });

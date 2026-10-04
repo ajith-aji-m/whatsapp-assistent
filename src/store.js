@@ -7,11 +7,9 @@ export function hasConversation(jid) {
   return conversations.has(jid);
 }
 
-// Records one turn of a conversation. role is "contact" or "assistant".
-// Creates the conversation on first use and returns it.
 export function recordMessage(jid, role, text, displayName) {
   if (!conversations.has(jid)) {
-    conversations.set(jid, { jid, displayName: displayName ?? null, messages: [] });
+    conversations.set(jid, { jid, displayName: displayName ?? null, messages: [], status: "active", closedAt: null });
   } else if (displayName) {
     conversations.get(jid).displayName = displayName;
   }
@@ -25,9 +23,28 @@ export function getConversation(jid) {
   return conversations.get(jid);
 }
 
-// One entry per contact that has at least one not-yet-handled incoming
-// message, with just those pending messages (not the assistant's own
-// replies — the summary should reflect only what was actually received).
+export function isConversationClosed(jid) {
+  return conversations.get(jid)?.status === "closed";
+}
+
+export function closeConversation(jid) {
+  const convo = conversations.get(jid);
+  if (!convo) return;
+  convo.status = "closed";
+  convo.closedAt = Date.now();
+}
+
+export function reopenConversation(jid, displayName) {
+  conversations.set(jid, {
+    jid,
+    displayName: displayName ?? conversations.get(jid)?.displayName ?? null,
+    messages: [],
+    status: "active",
+    closedAt: null,
+  });
+  return conversations.get(jid);
+}
+
 export function getPendingConversations() {
   return [...conversations.values()]
     .map((c) => ({
@@ -38,9 +55,6 @@ export function getPendingConversations() {
     .filter((c) => c.messages.length > 0);
 }
 
-// Marks every contact message in a conversation as handled — called after a
-// summary covering it has been sent, so the same messages aren't
-// re-summarized next time. Does not delete anything.
 export function markConversationHandled(jid) {
   const convo = conversations.get(jid);
   if (!convo) return;

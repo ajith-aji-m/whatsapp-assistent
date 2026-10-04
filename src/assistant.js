@@ -2,6 +2,7 @@ import { profile } from "./config.js";
 import { callGroqChat } from "./groq.js";
 import { describeScheduleStatus } from "./time.js";
 import { formatPersonalMemoryForPromptFresh, findRelevantPersonalMemory } from "./memoryStore.js";
+import { recordLatestError } from "./errorLogger.js";
 
 const FALLBACK_REPLY =
   "Sorry, I'm having trouble responding right now. Please leave your message and I'll make sure this gets passed on.";

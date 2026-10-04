@@ -199,6 +199,23 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
+      if (req.method === "GET" && url.pathname === "/api/google-drive/connect") {
+        if (!isAuthenticated(req)) {
+          res.writeHead(401, { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" });
+          res.end("Not verified.");
+          return;
+        }
+        try {
+          const authUrl = createGoogleDriveAuthUrl();
+          res.writeHead(302, { Location: authUrl, "Cache-Control": "no-store" });
+          res.end();
+        } catch (err) {
+          console.error("❌ Google Drive OAuth start failed:", err.message);
+          sendJson(res, 400, { ok: false, error: err.message });
+        }
+        return;
+      }
+
       if (req.method === "GET" && url.pathname === "/api/google-drive/callback") {
         const code = url.searchParams.get("code");
         const state = url.searchParams.get("state");
@@ -219,13 +236,11 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
           // Google's domain and the callback must remain independent of the
           // dashboard session.
           const result = await exchangeGoogleDriveCode(code, state);
-          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-          res.end(
-            "<h2>Google Drive connected</h2>" +
-            "<p>Copy the refresh token below into Render as <code>GOOGLE_DRIVE_REFRESH_TOKEN</code>, then redeploy.</p>" +
-            "<pre>" + result.refreshToken.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre>" +
-            "<p>You can close this page after saving the secret.</p>"
-          );
+          res.writeHead(302, {
+            Location: "/?drive=connected#settings",
+            "Cache-Control": "no-store",
+          });
+          res.end();
         } catch (err) {
           console.error("❌ Google Drive OAuth callback failed:", err.message);
           sendJson(res, 400, { ok: false, error: err.message });

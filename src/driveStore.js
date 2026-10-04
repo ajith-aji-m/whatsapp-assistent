@@ -212,7 +212,7 @@ export async function writePersonalMemoryToDrive(memory) {
   if (!isGoogleDriveConfigured()) return false;
   const fileId = await ensureDriveMemoryFile();
   const token = await getAccessToken();
-  const response = await fetch(`${DRIVE_API}/${fileId}?uploadType=media`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(memory, null, 2) });
+  const response = await fetch(`${DRIVE_UPLOAD_API}/${fileId}?uploadType=media`, { method: "PATCH", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify(memory, null, 2) });
   if (!response.ok) throw new Error(`Could not write personalMemory.json to Drive: ${response.status}`);
   return true;
 }

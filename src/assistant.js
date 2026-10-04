@@ -102,6 +102,7 @@ export async function generateAssistantReply(conversation) {
     return reply || `Got it, thanks — I'll make sure ${profile.name} sees this.`;
   } catch (err) {
     console.error("❌ Groq error while generating assistant reply:", err.message);
+    await recordLatestError({ type: "Groq Error", message: err.message, context: "generateAssistantReply" });
     return FALLBACK_REPLY;
   }
 }

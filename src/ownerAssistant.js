@@ -2,6 +2,7 @@ import { connectionState } from "./connectionState.js";
 import { addTask, listTasks, completeTask, addNote, listNotes, getCounts, searchAll } from "./productivityStore.js";
 import { routeOwnerMessage, groqConfigured } from "./groq.js";
 import { updatePersonalMemory } from "./memoryStore.js";
+import { readLatestErrorLog } from "./driveStore.js";
 
 const MAX_CONTEXT_MESSAGES = 20;
 const ownerContext = [];
@@ -14,7 +15,7 @@ function recordContext(role, text) {
 function parseDeterministic(rawText) {
   const text = rawText.trim();
   if (/^\/help$/i.test(text) || /^help$/i.test(text) || /^what can you do\??$/i.test(text)) return { intent: "HELP" };
-  if (/^\/status$/i.test(text)) return { intent: "STATUS" };
+  if (/^\/status$/i.test(text)) return { intent: "STATUS" };\n  if (/^(\/error|\/errors|latest error|error log|latest error log)$/i.test(text)) return { intent: "LATEST_ERROR" };
   if (/^\/tasks$/i.test(text)) return { intent: "TASK_LIST" };
   let m = text.match(/^\/task\s+done\s+#?(\d+)$/i);
   if (m) return { intent: "TASK_COMPLETE", taskId: parseInt(m[1], 10) };
@@ -52,7 +53,7 @@ async function formatStatus() {
 async function executeIntent(intent) {
   switch (intent.intent) {
     case "HELP": return formatHelp();
-    case "STATUS": return formatStatus();
+    case "STATUS": return formatStatus();\n    case "LATEST_ERROR": {\n      try {\n        const latestError = await readLatestErrorLog();\n        return latestError ? "⚠️ Latest error\\n\\n" + latestError : "✅ No error is currently recorded in errorLog.txt.";\n      } catch (err) {\n        return "⚠️ I could not read the latest error log from Google Drive: " + err.message;\n      }\n    }
     case "SUMMARY": return formatSummary();
     case "MEMORY_UPDATE": {
       const key = (intent.key || "").trim();

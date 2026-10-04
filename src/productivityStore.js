@@ -1,144 +1,75 @@
-// In-memory store for the owner-facing productivity features (tasks,
-// reminders, notes, links) — deliberately no database, same philosophy as
-// store.js's contact-conversation store: simple arrays, lost on restart.
-// Ids are small sequential integers (not UUIDs) on purpose — the owner
-// refers to items as "#3", "task 2", etc., so short numbers are what the
-// chat interface (ownerAssistant.js) actually needs to expose.
+import { loadPersonalMemoryFresh, savePersonalMemory } from "./memoryStore.js";
 
-let nextTaskId = 1;
-const tasks = [];
+const TASK_PREFIX = "task_";
+const NOTE_PREFIX = "note_";
 
-let nextReminderId = 1;
-const reminders = [];
-
-let nextNoteId = 1;
-const notes = [];
-
-let nextLinkId = 1;
-const links = [];
-
-// ---- Tasks ----
-
-export function addTask(title, { priority = "normal", dueAt = null } = {}) {
-  const task = { id: nextTaskId++, title, status: "pending", priority, createdAt: Date.now(), dueAt };
-  tasks.push(task);
-  return task;
+function entries(memory, prefix) {
+  return Object.entries(memory.facts || {})
+    .filter(([key]) => key.startsWith(prefix))
+    .map(([key, item]) => {
+      try { return JSON.parse(item.value); } catch { return null; }
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.id - b.id);
 }
 
-export function listTasks({ status } = {}) {
+async function loadData() {
+  const memory = await loadPersonalMemoryFresh();
+  return {
+    memory,
+    tasks: entries(memory, TASK_PREFIX),
+    notes: entries(memory, NOTE_PREFIX),
+  };
+}
+
+async function persist(memory, prefix, item) {
+  const key = `${prefix}${item.id}`;
+  memory.facts[key] = { value: JSON.stringify(item), source: "owner", updatedAt: new Date().toISOString() };
+  memory.updatedAt = new Date().toISOString();
+  await savePersonalMemory(memory);
+  return item;
+}
+
+export async function addTask(title, { priority = "normal", dueAt = null } = {}) {
+  const { memory, tasks } = await loadData();
+  const id = tasks.reduce((max, t) => Math.max(max, Number(t.id) || 0), 0) + 1;
+  return persist(memory, TASK_PREFIX, { id, title, status: "pending", priority, createdAt: Date.now(), dueAt });
+}
+export async function listTasks({ status } = {}) {
+  const { tasks } = await loadData();
   return status ? tasks.filter((t) => t.status === status) : tasks;
 }
-
-export function getTask(id) {
-  return tasks.find((t) => t.id === id);
-}
-
-export function completeTask(id) {
-  const task = getTask(id);
+export async function completeTask(id) {
+  const { memory, tasks } = await loadData();
+  const task = tasks.find((t) => t.id === id);
   if (!task) return null;
   task.status = "completed";
-  return task;
+  return persist(memory, TASK_PREFIX, task);
 }
-
-export function cancelTask(id) {
-  const task = getTask(id);
-  if (!task) return null;
-  task.status = "cancelled";
-  return task;
+export async function addNote(content) {
+  const { memory, notes } = await loadData();
+  const id = notes.reduce((max, n) => Math.max(max, Number(n.id) || 0), 0) + 1;
+  return persist(memory, NOTE_PREFIX, { id, content, createdAt: Date.now() });
 }
-
-export function searchTasks(keyword) {
+export async function listNotes() {
+  const { notes } = await loadData();
+  return notes;
+}
+export async function searchTasks(keyword) {
+  const tasks = await listTasks();
   const kw = keyword.toLowerCase();
   return tasks.filter((t) => t.title.toLowerCase().includes(kw));
 }
-
-// ---- Reminders ----
-
-export function addReminder(message, remindAt) {
-  const reminder = { id: nextReminderId++, message, remindAt, status: "pending", createdAt: Date.now() };
-  reminders.push(reminder);
-  return reminder;
-}
-
-export function listReminders({ status } = {}) {
-  return status ? reminders.filter((r) => r.status === status) : reminders;
-}
-
-export function getReminder(id) {
-  return reminders.find((r) => r.id === id);
-}
-
-export function cancelReminder(id) {
-  const reminder = getReminder(id);
-  if (!reminder) return null;
-  reminder.status = "cancelled";
-  return reminder;
-}
-
-// Reminders due to fire right now — used only by reminderScheduler.js.
-export function getDueReminders(now = Date.now()) {
-  return reminders.filter((r) => r.status === "pending" && r.remindAt <= now);
-}
-
-export function markReminderSent(id) {
-  const reminder = getReminder(id);
-  if (!reminder) return null;
-  reminder.status = "sent";
-  return reminder;
-}
-
-// ---- Notes ----
-
-export function addNote(content) {
-  const note = { id: nextNoteId++, content, createdAt: Date.now() };
-  notes.push(note);
-  return note;
-}
-
-export function listNotes() {
-  return notes;
-}
-
-export function searchNotes(keyword) {
+export async function searchNotes(keyword) {
+  const notes = await listNotes();
   const kw = keyword.toLowerCase();
   return notes.filter((n) => n.content.toLowerCase().includes(kw));
 }
-
-// ---- Links ----
-
-export function addLink(url, title = null) {
-  const link = { id: nextLinkId++, url, title, createdAt: Date.now() };
-  links.push(link);
-  return link;
+export async function getCounts() {
+  const [tasks, notes] = await Promise.all([listTasks({ status: "pending" }), listNotes()]);
+  return { tasks: tasks.length, notes: notes.length };
 }
-
-export function listLinks() {
-  return links;
-}
-
-export function searchLinks(keyword) {
-  const kw = keyword.toLowerCase();
-  return links.filter((l) => l.url.toLowerCase().includes(kw) || l.title?.toLowerCase().includes(kw));
-}
-
-// ---- Cross-cutting ----
-
-// Used by /status — counts only, never the content itself.
-export function getCounts() {
-  return {
-    tasks: tasks.filter((t) => t.status === "pending").length,
-    reminders: reminders.filter((r) => r.status === "pending").length,
-    notes: notes.length,
-    links: links.length,
-  };
-}
-
-// Used by /search — deliberately excludes reminders (a reminder is a
-// scheduled alert, not a searchable reference item like a task/note/link).
-export function searchAll(keyword) {
-  return {
-    tasks: searchTasks(keyword),
-    notes: searchNotes(keyword),
-    links: searchLinks(keyword),
-  };
+export async function searchAll(keyword) {
+  const [tasks, notes] = await Promise.all([searchTasks(keyword), searchNotes(keyword)]);
+  return { tasks, notes };
 }

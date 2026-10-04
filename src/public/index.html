@@ -561,6 +561,13 @@
           <div class="overview-item"><span class="k">Signed in as</span><span class="v" id="settingsOwnerName">—</span></div>
           <div class="overview-item"><span class="k">Assistant name</span><span class="v" id="settingsAssistantName">—</span></div>
           <div class="divider"></div>
+          <div class="field">
+            <label class="field-label">Google Drive</label>
+            <div class="field-hint" id="googleDriveStatusText">Not connected</div>
+            <button type="button" class="btn block" id="btnConnectGoogleDrive" style="margin-top:var(--space-3);">Connect Google Drive</button>
+            <div id="googleDriveError" class="error-text hidden"></div>
+          </div>
+          <div class="divider"></div>
           <div class="toggle-row field">
             <div>
               <label class="field-label" style="margin-bottom:2px;">Smart input suggestions</label>

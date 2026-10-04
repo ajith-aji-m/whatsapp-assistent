@@ -9,7 +9,7 @@ import { Boom } from "@hapi/boom";
 import pino from "pino";
 import fs from "node:fs/promises";
 import { profile } from "./config.js"; // also loads .env as a side effect (see config.js)
-import { hasConversation, recordMessage } from "./store.js";
+import { hasConversation, recordMessage, isConversationClosed, closeConversation, reopenConversation } from "./store.js";
 import { handleOwnerCommand, isAjith } from "./commands.js";
 import { generateAssistantReply } from "./assistant.js";
 import { handleOwnerMessage } from "./ownerAssistant.js";
@@ -281,16 +281,37 @@ async function startBot() {
       if (profile.availability === "AVAILABLE") continue;
 
       try {
-        const isFirstMessage = !hasConversation(remoteJid);
-        const conversation = recordMessage(remoteJid, "contact", text, msg.pushName);
+        const normalizedText = text.trim();
+        const lowerText = normalizedText.toLowerCase();
 
-        // The very first message from a contact always gets this exact
-        // fixed greeting (no Groq call needed for it); every message after
-        // that gets a natural Groq-generated reply that keeps the
-        // conversation going (see assistant.js), while still recording
-        // everything for the next /summary.
+        // Conversation endings are handled deterministically so a model
+        // cannot keep reopening the chat with repeated greetings or
+        // "anything else?" questions.
+        const isEndingMessage = /^(bye|bye bye|goodbye|good bye|ok bye|okay bye|take care|thanks bye|thank you bye|see you|see ya|talk later|i'?ll talk later|will talk later|catch you later|ttyl|done|that'?s all|thats all)[.!?\\s]*$/i.test(normalizedText);
+
+        if (isConversationClosed(remoteJid)) {
+          // Once a conversation is closed, acknowledgements/endings are
+          // silent. Only a genuinely new message reopens the conversation.
+          if (isEndingMessage || /^(ok|okay|thanks|thank you|👍|👌)[.!?\\s]*$/i.test(normalizedText)) continue;
+          reopenConversation(remoteJid, msg.pushName);
+        }
+
+        const isFirstMessage = !hasConversation(remoteJid);
+        const conversation = recordMessage(remoteJid, "contact", normalizedText, msg.pushName);
+
+        if (isEndingMessage) {
+          const reply = "Okay, take care. Bye!";
+          await sock.sendMessage(remoteJid, { text: reply });
+          recordMessage(remoteJid, "assistant", reply);
+          closeConversation(remoteJid);
+          continue;
+        }
+
+        // The first message gets the fixed introduction exactly once for
+        // that conversation lifecycle. Subsequent messages are answered
+        // naturally without restarting the introduction.
         const reply = isFirstMessage
-          ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.assistantName}, ${profile.name}'s ${profile.role}. Is there anything you'd like to tell ${profile.name}?`
+          ? `Hi! ${profile.name} is currently unavailable. I'm ${profile.assistantName}, ${profile.name}'s ${profile.role}.`
           : await generateAssistantReply(conversation);
 
         await sock.sendMessage(remoteJid, { text: reply });

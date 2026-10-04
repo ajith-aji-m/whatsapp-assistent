@@ -290,7 +290,8 @@ async function startBot() {
           // group-excluded self-chat this block already only runs for.
           if (!handled) await handleOwnerMessage(sock, remoteJid, text);
         } catch (err) {
-          console.error("❌ Error handling owner command:", err.message);\n          await recordLatestError({ type: "Owner Command Error", message: err.message, context: "handleOwnerCommand / handleOwnerMessage" });
+          console.error("❌ Error handling owner command:", err.message);
+          await recordLatestError({ type: "Owner Command Error", message: err.message, context: "handleOwnerCommand / handleOwnerMessage" });
         }
         continue; // the owner's own message never falls through to the contact-reply flow below
       }
@@ -346,7 +347,8 @@ async function startBot() {
         // generateAssistantReply already has its own fallback/catch for
         // Groq failures — this only catches something else going wrong
         // (e.g. sock.sendMessage itself failing), so the bot never crashes.
-        console.error("❌ Error handling message:", err.message);\n        await recordLatestError({ type: "Message Handling Error", message: err.message, context: "messages.upsert contact handling" });
+        console.error("❌ Error handling message:", err.message);
+        await recordLatestError({ type: "Message Handling Error", message: err.message, context: "messages.upsert contact handling" });
       }
     }
   });

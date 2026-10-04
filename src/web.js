@@ -199,7 +199,41 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
-      if (req.method === "GET" && url.pathname === "/api/google-drive/callback") {\n        if (!isAuthenticated(req)) {\n          sendJson(res, 401, { ok: false, error: "Not verified." });\n          return;\n        }\n        const code = url.searchParams.get("code");\n        const state = url.searchParams.get("state");\n        if (!code || !state) {\n          sendJson(res, 400, { ok: false, error: "Missing Google OAuth response." });\n          return;\n        }\n        try {\n          const result = await exchangeGoogleDriveCode(code, state);\n          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });\n          res.end("<h2>Google Drive connected</h2><p>Copy the refresh token below into Render as <code>GOOGLE_DRIVE_REFRESH_TOKEN</code>, then redeploy.</p><pre>" + result.refreshToken.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre><p>You can close this page after saving the secret.</p>");\n        } catch (err) {\n          console.error("❌ Google Drive OAuth callback failed:", err.message);\n          sendJson(res, 400, { ok: false, error: err.message });\n        }\n        return;\n      }\n\n      if (req.method === "GET" && url.pathname === "/api/status") {
+      if (req.method === "GET" && url.pathname === "/api/google-drive/callback") {
+        const code = url.searchParams.get("code");
+        const state = url.searchParams.get("state");
+        const error = url.searchParams.get("error");
+
+        if (error) {
+          sendJson(res, 400, { ok: false, error: `Google OAuth was cancelled or failed: ${error}` });
+          return;
+        }
+        if (!code || !state) {
+          sendJson(res, 400, { ok: false, error: "Missing Google OAuth response." });
+          return;
+        }
+
+        try {
+          // OAuth state is the security check for this callback. Do not require
+          // the dashboard cookie here because the browser is returning from
+          // Google's domain and the callback must remain independent of the
+          // dashboard session.
+          const result = await exchangeGoogleDriveCode(code, state);
+          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+          res.end(
+            "<h2>Google Drive connected</h2>" +
+            "<p>Copy the refresh token below into Render as <code>GOOGLE_DRIVE_REFRESH_TOKEN</code>, then redeploy.</p>" +
+            "<pre>" + result.refreshToken.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre>" +
+            "<p>You can close this page after saving the secret.</p>"
+          );
+        } catch (err) {
+          console.error("❌ Google Drive OAuth callback failed:", err.message);
+          sendJson(res, 400, { ok: false, error: err.message });
+        }
+        return;
+      }
+
+      if (req.method === "GET" && url.pathname === "/api/status") {
         sendJson(res, 200, await buildStatusPayload(isAuthenticated(req)));
         return;
       }

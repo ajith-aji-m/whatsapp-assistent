@@ -112,6 +112,7 @@ const INTENT_ENUM = [
   "SUMMARY",
   "HELP",
   "STATUS",
+  "MEMORY_UPDATE",
   "CHAT",
 ];
 
@@ -135,9 +136,10 @@ function routingSystemPrompt() {
     '{"intent":"SUMMARY"}\n' +
     '{"intent":"HELP"}\n' +
     '{"intent":"STATUS"}\n' +
+    '{"intent":"MEMORY_UPDATE","key":"<short fact name>","value":"<fact value>"}\n' +
     '{"intent":"CHAT","reply":"<warm, concise 1-4 sentence conversational reply to the owner, using the ' +
     'conversation context given>"}\n\n' +
-    "Use CHAT for anything that isn't clearly one of the other intents — normal questions, advice, small talk, " +
+    "Use MEMORY_UPDATE whenever the owner explicitly provides or corrects a personal fact that should be remembered for future contact replies (for example, their email, office address, role, preferred contact method, or another stable detail). Never infer a personal fact. Use CHAT for anything that isn't clearly one of the other intents — normal questions, advice, small talk, " +
     "coding help, etc. Never invent a taskId the owner didn't mention.\n\n" +
     `Current time: ${describeNowForPrompt()}. Resolve any relative time (e.g. "tomorrow 10am", "naalaikku 10 ` +
     'manikku", "30 minutes later") against the owner\'s LOCAL time above, then output "remindAt" as a UTC ISO ' +

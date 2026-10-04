@@ -123,8 +123,6 @@ const INTENT_ENUM = [
   "REMINDER_LIST",
   "NOTE_CREATE",
   "NOTE_LIST",
-  "LINK_SAVE",
-  "LINK_LIST",
   "SEARCH",
   "SUMMARY",
   "HELP",
@@ -156,7 +154,7 @@ function routingSystemPrompt() {
     '{"intent":"MEMORY_UPDATE","key":"<short fact name>","value":"<fact value>"}\n' +
     '{"intent":"CHAT","reply":"<warm, concise 1-4 sentence conversational reply to the owner, using the ' +
     'conversation context given>"}\n\n' +
-    "Use MEMORY_UPDATE whenever the owner explicitly provides or corrects a personal fact that should be remembered for future contact replies (for example, their email, office address, role, preferred contact method, or another stable detail). Never infer a personal fact. Use CHAT for anything that isn't clearly one of the other intents — normal questions, advice, small talk, " +
+    "Use MEMORY_UPDATE whenever the owner explicitly provides or corrects a personal fact that should be remembered for future contact replies (for example, their email, office address, role, preferred contact method, portfolio URL, website URL, or another stable detail). A message such as "this is my portfolio link: <url>" must be MEMORY_UPDATE with a key such as "portfolio_link" and the URL as its value. Never infer a personal fact. Do not use a separate link-saving intent; links that are personal details belong in MEMORY_UPDATE. Use CHAT for anything that isn't clearly one of the other intents — normal questions, advice, small talk, " +
     "coding help, etc. Never invent a taskId the owner didn't mention.\n\n" +
     `Current time: ${describeNowForPrompt()}. Resolve any relative time (e.g. "tomorrow 10am", "naalaikku 10 ` +
     'manikku", "30 minutes later") against the owner\'s LOCAL time above, then output "remindAt" as a UTC ISO ' +

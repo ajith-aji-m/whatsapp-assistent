@@ -53,7 +53,9 @@ async function formatStatus() {
 async function executeIntent(intent) {
   switch (intent.intent) {
     case "HELP": return formatHelp();
-    case "STATUS": return formatStatus();\n    case "LATEST_ERROR": {\n      try {\n        const latestError = await readLatestErrorLog();\n        return latestError ? "⚠️ Latest error\\n\\n" + latestError : "✅ No error is currently recorded in errorLog.txt.";\n      } catch (err) {\n        return "⚠️ I could not read the latest error log from Google Drive: " + err.message;\n      }\n    }
+    case "STATUS": return formatStatus();\n    case "LATEST_ERROR": {\n      try {\n        const latestError = await readLatestErrorLog();\n        return latestError ? "⚠️ Latest error
+
+" + latestError : "✅ No error is currently recorded in errorLog.txt.";\n      } catch (err) {\n        return "⚠️ I could not read the latest error log from Google Drive: " + err.message;\n      }\n    }
     case "SUMMARY": return formatSummary();
     case "MEMORY_UPDATE": {
       const key = (intent.key || "").trim();

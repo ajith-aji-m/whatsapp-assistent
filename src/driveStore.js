@@ -8,6 +8,7 @@ const ROOT_FOLDER_NAME = "Personal Assistant";
 const MEMORY_FILE_NAME = "personalMemory.json";
 
 let oauthState = null;
+let runtimeRefreshToken = "";
 let accessToken = null;
 let accessTokenExpiresAt = 0;
 let driveCache = { folderId: null, memoryFileId: null, checkedAt: 0 };
@@ -15,7 +16,7 @@ let driveCache = { folderId: null, memoryFileId: null, checkedAt: 0 };
 function configured() {
   return !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REDIRECT_URI);
 }
-function refreshToken() { return process.env.GOOGLE_DRIVE_REFRESH_TOKEN || ""; }
+function refreshToken() { return process.env.GOOGLE_DRIVE_REFRESH_TOKEN || runtimeRefreshToken; }
 
 export function isGoogleDriveConfigured() { return configured() && !!refreshToken(); }
 export function getGoogleDriveStatus() {
@@ -53,6 +54,7 @@ export async function exchangeGoogleDriveCode(code, state) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error_description || data.error || "Google token exchange failed.");
   if (!data.refresh_token) throw new Error("Google did not return a refresh token. Re-authorize with consent.");
+  runtimeRefreshToken = data.refresh_token;
   accessToken = data.access_token || null;
   accessTokenExpiresAt = Date.now() + Math.max(60, Number(data.expires_in || 3600) - 60) * 1000;
   driveCache = { folderId: null, memoryFileId: null, checkedAt: 0 };

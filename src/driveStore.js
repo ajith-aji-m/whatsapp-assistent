@@ -4,6 +4,7 @@ const DRIVE_SCOPE = "https://www.googleapis.com/auth/drive.file";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
+const DRIVE_UPLOAD_API = "https://www.googleapis.com/upload/drive/v3/files";
 const ROOT_FOLDER_NAME = "Personal Assistant";
 const MEMORY_FILE_NAME = "personalMemory.json";
 const ERROR_LOG_FILE_NAME = "errorLog.txt";
@@ -114,7 +115,7 @@ async function ensureTextFile(name, folderId, initialContent = "") {
   const metadata = JSON.stringify({ name, mimeType: "text/plain", parents: [folderId] });
   const content = initialContent;
   const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: text/plain; charset=UTF-8", "", content, `--${boundary}--`, ""].join("\r\n");
-  const data = await driveRequest(`${DRIVE_API}?uploadType=multipart`, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
+  const data = await driveRequest(`${DRIVE_UPLOAD_API}?uploadType=multipart`, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
   return data.id;
 }
 
@@ -179,7 +180,7 @@ export async function writeLatestErrorLog(error = {}) {
     `Message: ${String(error.message || "Unknown error").replace(/\\s+/g, " ").trim().slice(0, 2000)}`,
     error.context ? `Context: ${String(error.context).replace(/\\s+/g, " ").trim().slice(0, 1000)}` : ""
   ].filter(Boolean).join("\n");
-  const response = await fetch(`${DRIVE_API}/${fileId}?uploadType=media`, {
+  const response = await fetch(`${DRIVE_UPLOAD_API}/${fileId}?uploadType=media`, {
     method: "PATCH",
     headers: { Authorization: "Bearer " + token, "Content-Type": "text/plain; charset=utf-8" },
     body: entry

@@ -256,6 +256,14 @@ async function executeIntent(intent) {
     case "SUMMARY":
       return formatSummary();
 
+    case "MEMORY_UPDATE": {
+      const key = (intent.key || "").trim();
+      const value = (intent.value || "").trim();
+      if (!key || !value) return "I need the detail and its value to remember it.";
+      updatePersonalMemory(key, value, "owner");
+      return `Got it — I’ll remember that ${key} is ${value}.`;
+    }
+
     case "TASK_CREATE": {
       const title = (intent.title || "").trim();
       if (!title) return "What should I add as a task?";

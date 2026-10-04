@@ -145,6 +145,7 @@ async function buildStatusPayload(authenticated) {
     authenticated: true,
     configured,
     status: connectionState.status,
+    googleDrive: getGoogleDriveStatus(),
     qrDataUrl,
     connectedAt: connectionState.connectedAt,
     profile: {

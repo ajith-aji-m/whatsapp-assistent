@@ -514,8 +514,17 @@
   function enterShell(data) {
     appPhase = "shell";
     showView("shell");
-    if (!qs(".nav-item.active")) showPage("dashboard");
+    if (location.hash === "#settings") {
+      showPage("settings");
+    } else if (!qs(".nav-item.active")) {
+      showPage("dashboard");
+    }
     renderShell(data);
+
+    if (new URLSearchParams(location.search).get("drive") === "connected") {
+      history.replaceState({}, "", "/#settings");
+      toast("Google Drive connected.", "success");
+    }
   }
 
   function renderShell(data) {
@@ -583,6 +592,17 @@
     // --- Settings page ---
     el("settingsOwnerName").textContent = p.name || "—";
     el("settingsAssistantName").textContent = p.assistantName || "—";
+
+    const drive = data.googleDrive || {};
+    const driveConnected = !!drive.connected;
+    el("googleDriveStatusText").textContent = driveConnected
+      ? "Connected to your Google Drive."
+      : drive.configured
+        ? "OAuth is configured. Connect your Google Drive to enable memory storage."
+        : "Google Drive OAuth is not configured yet.";
+    el("googleDriveStatusText").classList.toggle("success-text", driveConnected);
+    el("btnConnectGoogleDrive").textContent = driveConnected ? "Google Drive connected" : "Connect Google Drive";
+    el("btnConnectGoogleDrive").disabled = driveConnected;
   }
 
   // Dashboard: IN / OUT controls — call the real /api/availability endpoint,
@@ -601,6 +621,13 @@
   }
   el("btnSetIn").addEventListener("click", () => setAvailability("AVAILABLE"));
   el("btnSetOut").addEventListener("click", () => setAvailability("UNAVAILABLE"));
+
+  el("btnConnectGoogleDrive").addEventListener("click", () => {
+    hideMessage(el("googleDriveError"));
+    el("btnConnectGoogleDrive").disabled = true;
+    el("btnConnectGoogleDrive").textContent = "Opening Google…";
+    window.location.href = "/api/google-drive/connect";
+  });
 
   el("btnSaveAssistantName").addEventListener("click", async () => {
     hideMessage(el("assistantNameError"));

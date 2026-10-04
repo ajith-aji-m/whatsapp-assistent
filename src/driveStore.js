@@ -158,7 +158,18 @@ async function ensureDriveErrorLogFile() {
   return ensureErrorLogFile(driveCache.folderId);
 }
 
-export async function readLatestErrorLog() {\n  if (!isGoogleDriveConfigured()) return null;\n  const fileId = await ensureDriveErrorLogFile();\n  const token = await getAccessToken();\n  const response = await fetch(DRIVE_API + "/" + fileId + "?alt=media", {\n    headers: { Authorization: "Bearer " + token }\n  });\n  if (!response.ok) throw new Error("Could not read errorLog.txt from Drive: " + response.status);\n  return (await response.text()).trim() || null;\n}\n\nexport async function writeLatestErrorLog(error = {}) {
+export async function readLatestErrorLog() {
+  if (!isGoogleDriveConfigured()) return null;
+  const fileId = await ensureDriveErrorLogFile();
+  const token = await getAccessToken();
+  const response = await fetch(DRIVE_API + "/" + fileId + "?alt=media", {
+    headers: { Authorization: "Bearer " + token }
+  });
+  if (!response.ok) throw new Error("Could not read errorLog.txt from Drive: " + response.status);
+  return (await response.text()).trim() || null;
+}
+
+export async function writeLatestErrorLog(error = {}) {
   if (!isGoogleDriveConfigured()) return false;
   const fileId = await ensureDriveErrorLogFile();
   const token = await getAccessToken();
@@ -170,7 +181,7 @@ export async function readLatestErrorLog() {\n  if (!isGoogleDriveConfigured()) 
   ].filter(Boolean).join("\n");
   const response = await fetch(`${DRIVE_API}/${fileId}?uploadType=media`, {
     method: "PATCH",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/plain; charset=utf-8" },
+    headers: { Authorization: "Bearer " + token, "Content-Type": "text/plain; charset=utf-8" },
     body: entry
   });
   if (!response.ok) throw new Error(`Could not write errorLog.txt to Drive: ${response.status}`);

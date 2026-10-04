@@ -8,6 +8,7 @@ import { connectionState, connectionEvents } from "./connectionState.js";
 import { sendSummaryToAjith } from "./summary.js";
 import { commandsListText, commandsList } from "./commands.js";
 import { generateSystemPrompt, generateFieldSuggestion } from "./groq.js";
+import { createGoogleDriveAuthUrl, exchangeGoogleDriveCode, getGoogleDriveStatus } from "./driveStore.js";
 
 const SUGGEST_ELIGIBLE_FIELDS = new Set(["role", "profession"]);
 import { getScheduleSnapshot } from "./time.js";
@@ -198,7 +199,7 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
-      if (req.method === "GET" && url.pathname === "/api/status") {
+      if (req.method === "GET" && url.pathname === "/api/google-drive/callback") {\n        if (!isAuthenticated(req)) {\n          sendJson(res, 401, { ok: false, error: "Not verified." });\n          return;\n        }\n        const code = url.searchParams.get("code");\n        const state = url.searchParams.get("state");\n        if (!code || !state) {\n          sendJson(res, 400, { ok: false, error: "Missing Google OAuth response." });\n          return;\n        }\n        try {\n          const result = await exchangeGoogleDriveCode(code, state);\n          res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });\n          res.end("<h2>Google Drive connected</h2><p>Copy the refresh token below into Render as <code>GOOGLE_DRIVE_REFRESH_TOKEN</code>, then redeploy.</p><pre>" + result.refreshToken.replace(/&/g, "&amp;").replace(/</g, "&lt;") + "</pre><p>You can close this page after saving the secret.</p>");\n        } catch (err) {\n          console.error("❌ Google Drive OAuth callback failed:", err.message);\n          sendJson(res, 400, { ok: false, error: err.message });\n        }\n        return;\n      }\n\n      if (req.method === "GET" && url.pathname === "/api/status") {
         sendJson(res, 200, await buildStatusPayload(isAuthenticated(req)));
         return;
       }
@@ -333,7 +334,7 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
-      if (req.method === "POST" && url.pathname === "/api/logout") {
+      if (req.method === "GET" && url.pathname === "/api/google-drive/connect") {\n        try {\n          const authUrl = createGoogleDriveAuthUrl();\n          sendJson(res, 200, { ok: true, authUrl });\n        } catch (err) {\n          sendJson(res, 503, { ok: false, error: err.message });\n        }\n        return;\n      }\n\n      if (req.method === "GET" && url.pathname === "/api/google-drive/status") {\n        sendJson(res, 200, { ok: true, ...getGoogleDriveStatus() });\n        return;\n      }\n\n      if (req.method === "POST" && url.pathname === "/api/logout") {
         destroySession(getSessionToken(req));
         clearSessionCookie(res);
 

@@ -36,6 +36,23 @@ function parseRetryAfterMs(errText) {
 // site in this project (owner assistant, contact auto-reply, pending-
 // conversation summary, setup-wizard prompt generation) behaves the same
 // way and degrades the same way on failure.
+export async function transcribeGroqAudio(buffer, mimeType = "audio/ogg") {
+  if (!groqConfigured()) throw new Error("GROQ_API_KEY is not set");
+  const form = new FormData();
+  form.append("file", new Blob([buffer], { type: mimeType }), "voice.ogg");
+  form.append("model", process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo");
+  form.append("response_format", "json");
+  const response = await fetch("https://api.groq.com/openai/v1/audio/transcriptions", {
+    method: "POST",
+    headers: { Authorization: "Bearer " + process.env.GROQ_API_KEY },
+    body: form,
+    signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new Error("Groq transcription failed (" + response.status + ")");
+  const data = await response.json();
+  return stripReasoningArtifacts(data.text || "").trim();
+}
+
 export async function callGroqChat(messages, { timeoutMs = CHAT_TIMEOUT_MS, jsonMode = false } = {}) {
   if (!groqConfigured()) {
     throw new Error("GROQ_API_KEY is not set");

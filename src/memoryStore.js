@@ -57,6 +57,18 @@ export function formatPersonalMemoryForPrompt() {
     .join("\n");
 }
 
+export function findRelevantPersonalMemory(query) {
+  const memory = loadPersonalMemory();
+  const terms = String(query || "").toLowerCase().split(/[^a-z0-9]+/).filter((term) => term.length >= 3);
+  if (terms.length === 0) return {};
+  const matches = {};
+  for (const [key, item] of Object.entries(memory.facts)) {
+    const haystack = (key + " " + item.value).toLowerCase();
+    if (terms.some((term) => haystack.includes(term))) matches[key] = item;
+  }
+  return matches;
+}
+
 export function listPersonalMemory() {
   return loadPersonalMemory().facts;
 }

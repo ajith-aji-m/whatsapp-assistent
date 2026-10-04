@@ -1,7 +1,7 @@
 import { profile } from "./config.js";
 import { callGroqChat } from "./groq.js";
 import { describeScheduleStatus } from "./time.js";
-import { formatPersonalMemoryForPrompt, findRelevantPersonalMemory } from "./memoryStore.js";
+import { formatPersonalMemoryForPromptFresh, findRelevantPersonalMemory } from "./memoryStore.js";
 
 const FALLBACK_REPLY =
   "Sorry, I'm having trouble responding right now. Please leave your message and I'll make sure this gets passed on.";
@@ -58,7 +58,7 @@ function scheduleContext() {
 // leaks internal details. Only ever called while the owner is UNAVAILABLE
 // (see index.js, which goes completely silent for contacts while
 // AVAILABLE), so the prompt doesn't need to branch on availability.
-const systemPrompt = (latestText = "") => {
+const systemPrompt = async (latestText = "") => {
   const basePrompt = profile.systemPrompt?.trim() || defaultBasePrompt();
   const relevantMemory = findRelevantPersonalMemory(latestText);
   const allMemory = formatPersonalMemoryForPrompt();
@@ -90,7 +90,7 @@ const systemPrompt = (latestText = "") => {
 export async function generateAssistantReply(conversation) {
   const latestText = conversation.messages[conversation.messages.length - 1]?.text || "";
   const messages = [
-    { role: "system", content: systemPrompt(latestText) },
+    { role: "system", content: await systemPrompt(latestText) },
     ...conversation.messages.map((m) => ({
       role: m.role === "contact" ? "user" : "assistant",
       content: m.text,

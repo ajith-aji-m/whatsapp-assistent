@@ -60,8 +60,8 @@ function scheduleContext() {
 // AVAILABLE), so the prompt doesn't need to branch on availability.
 const systemPrompt = async (latestText = "") => {
   const basePrompt = profile.systemPrompt?.trim() || defaultBasePrompt();
+  const allMemory = await formatPersonalMemoryForPromptFresh();
   const relevantMemory = findRelevantPersonalMemory(latestText);
-  const allMemory = formatPersonalMemoryForPrompt();
   const memoryLookupText = Object.keys(relevantMemory).length
     ? Object.entries(relevantMemory).map(([key, item]) => "- " + key + ": " + item.value).join("\n")
     : "No matching saved personal detail was found.";

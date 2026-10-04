@@ -14,7 +14,7 @@ import {
 } from "./productivityStore.js";
 import { routeOwnerMessage, generateLinkTitle, groqConfigured } from "./groq.js";
 import { resolveTodayOrTomorrowAt, formatLocalDateTime } from "./time.js";
-import { updatePersonalMemory, listPersonalMemory } from "./memoryStore.js";
+import { updatePersonalMemory } from "./memoryStore.js";
 
 // This module is the owner's OWN productivity assistant — tasks, reminders,
 // notes, links, search, summary, help, status, and normal AI chat — reached

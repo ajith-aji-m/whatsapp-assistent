@@ -383,7 +383,8 @@ export function startWebServer({ startBot, logoutWhatsApp, host, port }) {
         return;
       }
 
-\n      if (req.method === "POST" && url.pathname === "/api/logout") {
+
+      if (req.method === "POST" && url.pathname === "/api/logout") {
         destroySession(getSessionToken(req));
         clearSessionCookie(res);
 

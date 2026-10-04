@@ -6,6 +6,7 @@ const TOKEN_URL = "https://oauth2.googleapis.com/token";
 const DRIVE_API = "https://www.googleapis.com/drive/v3/files";
 const ROOT_FOLDER_NAME = "Personal Assistant";
 const MEMORY_FILE_NAME = "personalMemory.json";
+const ERROR_LOG_FILE_NAME = "errorLog.txt";
 
 let oauthState = null;
 let runtimeRefreshToken = "";
@@ -106,12 +107,12 @@ async function ensureFolder(name, parentId = null) {
   return data.id;
 }
 
-async function ensureMemoryFile(folderId) {
-  const existing = await findFile(MEMORY_FILE_NAME, folderId, "application/json");
+async function ensureTextFile(name, folderId, initialContent = "") {
+  const existing = await findFile(name, folderId, "text/plain");
   if (existing) return existing.id;
   const boundary = `drive-boundary-${crypto.randomUUID()}`;
-  const metadata = JSON.stringify({ name: MEMORY_FILE_NAME, mimeType: "application/json", parents: [folderId] });
-  const content = JSON.stringify({ version: 1, updatedAt: null, facts: {} }, null, 2);
+  const metadata = JSON.stringify({ name, mimeType: "text/plain", parents: [folderId] });
+  const content = initialContent;
   const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: application/json", "", content, `--${boundary}--`, ""].join("\r\n");
   const data = await driveRequest(DRIVE_API, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
   return data.id;
@@ -135,6 +136,45 @@ export async function readPersonalMemoryFromDrive() {
   const parsed = await response.json();
   if (!parsed || typeof parsed !== "object" || typeof parsed.facts !== "object") throw new Error("Drive personalMemory.json has an invalid format.");
   return parsed;
+}
+
+async function ensureMemoryFile(folderId) {
+  const existing = await findFile(MEMORY_FILE_NAME, folderId, "application/json");
+  if (existing) return existing.id;
+  const boundary = `drive-boundary-${crypto.randomUUID()}`;
+  const metadata = JSON.stringify({ name: MEMORY_FILE_NAME, mimeType: "application/json", parents: [folderId] });
+  const content = JSON.stringify({ version: 1, updatedAt: null, facts: {} }, null, 2);
+  const multipart = [`--${boundary}`, "Content-Type: application/json; charset=UTF-8", "", metadata, `--${boundary}`, "Content-Type: application/json", "", content, `--${boundary}--`, ""].join("\r\n");
+  const data = await driveRequest(DRIVE_API, { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
+  return data.id;
+}
+
+async function ensureErrorLogFile(folderId) {
+  return ensureTextFile(ERROR_LOG_FILE_NAME, folderId, "");
+}
+
+async function ensureDriveErrorLogFile() {
+  driveCache.folderId = await ensureFolder(ROOT_FOLDER_NAME);
+  return ensureErrorLogFile(driveCache.folderId);
+}
+
+export async function writeLatestErrorLog(error = {}) {
+  if (!isGoogleDriveConfigured()) return false;
+  const fileId = await ensureDriveErrorLogFile();
+  const token = await getAccessToken();
+  const entry = [
+    `Timestamp: ${new Date().toISOString()}`,
+    `Type: ${String(error.type || "Application Error")}`,
+    `Message: ${String(error.message || "Unknown error").replace(/\\s+/g, " ").trim().slice(0, 2000)}`,
+    error.context ? `Context: ${String(error.context).replace(/\\s+/g, " ").trim().slice(0, 1000)}` : ""
+  ].filter(Boolean).join("\n");
+  const response = await fetch(`${DRIVE_API}/${fileId}?uploadType=media`, {
+    method: "PATCH",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "text/plain; charset=utf-8" },
+    body: entry
+  });
+  if (!response.ok) throw new Error(`Could not write errorLog.txt to Drive: ${response.status}`);
+  return true;
 }
 
 export async function writePersonalMemoryToDrive(memory) {

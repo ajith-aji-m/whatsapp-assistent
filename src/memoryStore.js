@@ -1,8 +1,4 @@
-import fs from "node:fs";
-import path from "node:path";
 import { readPersonalMemoryFromDrive, writePersonalMemoryToDrive, isGoogleDriveConfigured } from "./driveStore.js";
-
-const MEMORY_FILE = path.join(process.cwd(), "data", "personalMemory.json");
 
 function normalizeKey(key) {
   return String(key || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 80);
@@ -10,51 +6,34 @@ function normalizeKey(key) {
 function emptyMemory() { return { version: 1, updatedAt: null, facts: {} }; }
 
 export function loadPersonalMemory() {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
-    if (parsed && typeof parsed === "object" && parsed.facts && typeof parsed.facts === "object") return parsed;
-  } catch {}
   return emptyMemory();
 }
 
 export async function loadPersonalMemoryFresh() {
-  if (!isGoogleDriveConfigured()) return loadPersonalMemory();
-  try {
-    const remote = await readPersonalMemoryFromDrive();
-    fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true });
-    fs.writeFileSync(MEMORY_FILE, JSON.stringify(remote, null, 2), "utf8");
-    return remote;
-  } catch (err) {
-    console.error("⚠️ Drive memory read failed; using local memory:", err.message);
-    return loadPersonalMemory();
-  }
+  if (!isGoogleDriveConfigured()) throw new Error("Google Drive is not connected. Connect Google Drive before using personal memory.");
+  return (await readPersonalMemoryFromDrive()) || emptyMemory();
+}
+
+export async function savePersonalMemory(memory) {
+  if (!isGoogleDriveConfigured()) throw new Error("Google Drive is not connected. Connect Google Drive before saving personal memory.");
+  await writePersonalMemoryToDrive(memory);
+  return memory;
 }
 
 export async function updatePersonalMemory(key, value, source = "owner") {
   const normalizedKey = normalizeKey(key);
   const cleanValue = String(value ?? "").trim();
   if (!normalizedKey || !cleanValue) return loadPersonalMemoryFresh();
-
   const memory = await loadPersonalMemoryFresh();
   const updatedAt = new Date().toISOString();
   memory.facts[normalizedKey] = { value: cleanValue.slice(0, 1000), source, updatedAt };
   memory.updatedAt = updatedAt;
-
-  try {
-    fs.mkdirSync(path.dirname(MEMORY_FILE), { recursive: true });
-    fs.writeFileSync(MEMORY_FILE, JSON.stringify(memory, null, 2), "utf8");
-    if (isGoogleDriveConfigured()) await writePersonalMemoryToDrive(memory);
-    const persisted = JSON.parse(fs.readFileSync(MEMORY_FILE, "utf8"));
-    if (persisted?.facts?.[normalizedKey]?.value !== memory.facts[normalizedKey].value) throw new Error("memory read-back verification failed");
-  } catch (err) {
-    console.error("⚠️ Failed to persist personal memory:", err.message);
-  }
-  return loadPersonalMemory();
+  return savePersonalMemory(memory);
 }
 
 export async function formatPersonalMemoryForPromptFresh() {
   const memory = await loadPersonalMemoryFresh();
-  const entries = Object.entries(memory.facts);
+  const entries = Object.entries(memory.facts || {});
   if (entries.length === 0) return "No additional personal facts have been saved yet.";
   return entries.map(([key, item]) => `- ${key}: ${item.value}`).join("\n");
 }
@@ -70,7 +49,7 @@ function expandedTerms(query) {
   if (/\b(address|location)\b/.test(q)) ["address", "location", "office_address"].forEach((t) => terms.add(t));
   return [...terms];
 }
-export function findRelevantPersonalMemory(query, memory = loadPersonalMemory()) {
+export function findRelevantPersonalMemory(query, memory = emptyMemory()) {
   const terms = expandedTerms(query);
   if (terms.length === 0) return {};
   const matches = {};
@@ -80,4 +59,4 @@ export function findRelevantPersonalMemory(query, memory = loadPersonalMemory())
   }
   return matches;
 }
-export function listPersonalMemory() { return loadPersonalMemory().facts; }
+export function listPersonalMemory(memory = emptyMemory()) { return memory.facts || {}; }

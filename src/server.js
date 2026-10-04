@@ -4,7 +4,6 @@
 // session) decide when startBot() actually runs.
 import { startBot, logoutWhatsApp } from "./index.js";
 import { startWebServer } from "./web.js";
-import { startReminderScheduler } from "./reminderScheduler.js";
 import { profile } from "./config.js";
 import { connectionState } from "./connectionState.js";
 
@@ -25,8 +24,3 @@ if (!!profile.systemPrompt && !connectionState.startedOnce) {
   startBot().catch((err) => console.error("❌ Failed to resume WhatsApp connection on boot:", err.message));
 }
 
-// Independent of the WhatsApp connect/reconnect cycle — it self-guards
-// against being started twice and just waits for a live socket on each
-// tick (see reminderScheduler.js), so starting it once here at boot is
-// enough regardless of when/how often startBot() itself runs.
-startReminderScheduler();
